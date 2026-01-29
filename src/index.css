@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* ── 다크 모드 CSS 변수 ─────────────────────────────── */
+
+:root {
+  /* 라이트 모드 (기본) */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb; /* gray-50 */
+  --color-bg-tertiary: #f3f4f6; /* gray-100 */
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f3f4f6;
+  --color-bg-input: #f3f4f6;
+  --color-bg-overlay: rgba(0, 0, 0, 0.4);
+
+  --color-text-primary: #111827; /* gray-900 */
+  --color-text-secondary: #4b5563; /* gray-600 */
+  --color-text-tertiary: #9ca3af; /* gray-400 */
+  --color-text-muted: #d1d5db; /* gray-300 */
+
+  --color-border-primary: #e5e7eb; /* gray-200 */
+  --color-border-secondary: #f3f4f6; /* gray-100 */
+
+  --color-accent: #2563eb; /* blue-600 */
+  --color-accent-light: #dbeafe; /* blue-100 */
+}
+
+.dark {
+  /* 다크 모드 */
+  --color-bg-primary: #1a1a1a;
+  --color-bg-secondary: #121212;
+  --color-bg-tertiary: #2d2d2d;
+  --color-bg-card: #242424;
+  --color-bg-hover: #333333;
+  --color-bg-input: #2d2d2d;
+  --color-bg-overlay: rgba(0, 0, 0, 0.7);
+
+  --color-text-primary: #f3f4f6; /* gray-100 */
+  --color-text-secondary: #d1d5db; /* gray-300 */
+  --color-text-tertiary: #9ca3af; /* gray-400 */
+  --color-text-muted: #6b7280; /* gray-500 */
+
+  --color-border-primary: #3d3d3d;
+  --color-border-secondary: #2d2d2d;
+
+  --color-accent: #3b82f6; /* blue-500 */
+  --color-accent-light: #1e3a5f;
+}
+
+/* ── 기본 스타일 ─────────────────────────────────────── */
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── 다크 모드 유틸리티 클래스 ─────────────────────── */
+
+/* 배경색 */
+.bg-theme-primary { background-color: var(--color-bg-primary); }
+.bg-theme-secondary { background-color: var(--color-bg-secondary); }
+.bg-theme-tertiary { background-color: var(--color-bg-tertiary); }
+.bg-theme-card { background-color: var(--color-bg-card); }
+.bg-theme-hover:hover { background-color: var(--color-bg-hover); }
+.bg-theme-input { background-color: var(--color-bg-input); }
+.bg-theme-overlay { background-color: var(--color-bg-overlay); }
+
+/* 텍스트 색상 */
+.text-theme-primary { color: var(--color-text-primary); }
+.text-theme-secondary { color: var(--color-text-secondary); }
+.text-theme-tertiary { color: var(--color-text-tertiary); }
+.text-theme-muted { color: var(--color-text-muted); }
+
+/* 테두리 색상 */
+.border-theme-primary { border-color: var(--color-border-primary); }
+.border-theme-secondary { border-color: var(--color-border-secondary); }
+
+/* 액센트 색상 */
+.bg-theme-accent { background-color: var(--color-accent); }
+.bg-theme-accent-light { background-color: var(--color-accent-light); }
+.text-theme-accent { color: var(--color-accent); }
+
+/* ── 다크 모드 Tailwind 확장 ─────────────────────────── */
+
+/* 기본 배경색 오버라이드 */
+.dark .bg-white { background-color: var(--color-bg-card); }
+.dark .bg-gray-50 { background-color: var(--color-bg-secondary); }
+.dark .bg-gray-100 { background-color: var(--color-bg-tertiary); }
+.dark .bg-gray-200 { background-color: #3d3d3d; }
+
+/* 기본 텍스트색 오버라이드 */
+.dark .text-gray-900 { color: var(--color-text-primary); }
+.dark .text-gray-800 { color: #e5e7eb; }
+.dark .text-gray-700 { color: #d1d5db; }
+.dark .text-gray-600 { color: #9ca3af; }
+.dark .text-gray-500 { color: #9ca3af; }
+.dark .text-gray-400 { color: #6b7280; }
+
+/* 테두리색 오버라이드 */
+.dark .border-gray-100 { border-color: var(--color-border-secondary); }
+.dark .border-gray-200 { border-color: var(--color-border-primary); }
+.dark .border-gray-300 { border-color: #4b5563; }
+
+/* hover 배경색 오버라이드 */
+.dark .hover\:bg-gray-50:hover { background-color: var(--color-bg-hover); }
+.dark .hover\:bg-gray-100:hover { background-color: #3d3d3d; }
+
+/* placeholder 색상 */
+.dark .placeholder\:text-gray-400::placeholder { color: #6b7280; }
+
+/* 그라데이션 (프로필 카드) */
+.dark .from-blue-600 { --tw-gradient-from: #1e40af; }
+.dark .to-blue-700 { --tw-gradient-to: #1e3a8a; }
+
+/* 입력 필드 */
+.dark input, .dark textarea, .dark select {
+  background-color: var(--color-bg-input);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-primary);
+}
+
+.dark input:focus, .dark textarea:focus, .dark select:focus {
+  background-color: var(--color-bg-tertiary);
+}
+
+/* 스크롤바 */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Google Maps 다크 모드 */
+.dark .gm-style {
+  filter: invert(90%) hue-rotate(180deg);
+}
+
+.dark .gm-style img:not([src*="marker"]) {
+  filter: invert(100%) hue-rotate(180deg);
+}
+
+.dark .gm-style canvas {
+  filter: invert(100%) hue-rotate(180deg);
+}
+
+/* 마커는 원래 색상 유지 */
+.dark .gm-style [role="img"] {
+  filter: invert(100%) hue-rotate(180deg);
+}
