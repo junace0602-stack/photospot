@@ -115,15 +115,16 @@ function getEventStatus(event: Event): { label: string; color: string } {
   return { label: '마감', color: 'bg-blue-50 text-blue-600' }
 }
 
-/* ── Lazy Image ───────────────────────────────────── */
+/* ── Lazy Image with Skeleton ───────────────────────────────────── */
 
-function LazyImage({
+const LazyImage = memo(function LazyImage({
   src,
   alt = '',
-  className,
+  className = '',
   style,
   onClick,
   draggable,
+  wrapperClassName = '',
 }: {
   src: string
   alt?: string
@@ -131,20 +132,41 @@ function LazyImage({
   style?: React.CSSProperties
   onClick?: React.MouseEventHandler
   draggable?: boolean
+  wrapperClassName?: string
 }) {
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
+
+  // src가 변경되면 상태 리셋
+  useEffect(() => {
+    setLoaded(false)
+    setError(false)
+  }, [src])
+
   return (
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      className={className}
+    <div
+      className={`relative overflow-hidden ${wrapperClassName}`}
       style={style}
       onClick={onClick}
-      draggable={draggable}
-    />
+    >
+      {/* 스켈레톤 (로딩 중일 때 표시) */}
+      {!loaded && !error && (
+        <div className="absolute inset-0 bg-gray-200 dark:bg-gray-700 animate-pulse" />
+      )}
+      {/* 실제 이미지 */}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className={`${className} transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        draggable={draggable}
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
+      />
+    </div>
   )
-}
+})
 
 /* ── 포토 그리드 (메모이제이션) ──────────────────────────────────── */
 
@@ -158,9 +180,12 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
 
   if (urls.length === 1) {
     return (
-      <div className="rounded-xl overflow-hidden cursor-pointer" onClick={click(0)}>
-        <LazyImage src={urls[0]} className="w-full max-h-80 object-cover" />
-      </div>
+      <LazyImage
+        src={urls[0]}
+        className="w-full max-h-80 object-cover"
+        wrapperClassName="rounded-xl cursor-pointer"
+        onClick={click(0)}
+      />
     )
   }
 
@@ -168,7 +193,13 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
     return (
       <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
         {urls.map((u, i) => (
-          <LazyImage key={i} src={u} className="w-full h-48 object-cover cursor-pointer" onClick={click(i)} />
+          <LazyImage
+            key={i}
+            src={u}
+            className="w-full h-48 object-cover"
+            wrapperClassName="cursor-pointer h-48"
+            onClick={click(i)}
+          />
         ))}
       </div>
     )
@@ -177,9 +208,27 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
   if (urls.length === 3) {
     return (
       <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden" style={{ height: 240 }}>
-        <LazyImage src={urls[0]} className="w-full h-full object-cover cursor-pointer" style={{ gridRow: '1/3' }} onClick={click(0)} />
-        <LazyImage src={urls[1]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(1)} />
-        <LazyImage src={urls[2]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(2)} />
+        <LazyImage
+          src={urls[0]}
+          className="w-full h-full object-cover"
+          wrapperClassName="cursor-pointer"
+          style={{ gridRow: '1/3' }}
+          onClick={click(0)}
+        />
+        <LazyImage
+          src={urls[1]}
+          className="w-full h-full object-cover"
+          wrapperClassName="cursor-pointer"
+          style={{ height: 119 }}
+          onClick={click(1)}
+        />
+        <LazyImage
+          src={urls[2]}
+          className="w-full h-full object-cover"
+          wrapperClassName="cursor-pointer"
+          style={{ height: 119 }}
+          onClick={click(2)}
+        />
       </div>
     )
   }
@@ -191,7 +240,7 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
     <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
       {show.map((u, i) => (
         <div key={i} className="relative cursor-pointer" onClick={click(i)}>
-          <LazyImage src={u} className="w-full h-32 object-cover" />
+          <LazyImage src={u} className="w-full h-32 object-cover" wrapperClassName="h-32" />
           {i === 3 && extra > 0 && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
               <span className="text-white text-lg font-bold">+{extra}</span>
