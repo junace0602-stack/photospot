@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function NicknameSetupPage() {
-  const { user } = useAuth()
+  const navigate = useNavigate()
+  const { user, refreshProfile } = useAuth()
   const [nickname, setNickname] = useState('')
   const [checking, setChecking] = useState(false)
   const [available, setAvailable] = useState<boolean | null>(null)
@@ -61,7 +63,10 @@ export default function NicknameSetupPage() {
 
     // sessionStorage 정리
     sessionStorage.removeItem('terms_agreed')
-    window.location.href = '/'
+
+    // AuthContext 프로필 상태 업데이트 후 이동
+    await refreshProfile()
+    navigate('/', { replace: true })
   }
 
   return (

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -183,6 +184,7 @@ function CheckboxItem({
 /* ── 메인 컴포넌트 ──────────────────────────────────── */
 
 export default function TermsAgreementPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [privacyAgreed, setPrivacyAgreed] = useState(false)
@@ -203,7 +205,7 @@ export default function TermsAgreementPage() {
     sessionStorage.setItem('terms_agreed', 'true')
 
     // 닉네임 설정 페이지로 이동
-    window.location.href = '/nickname-setup'
+    navigate('/nickname-setup', { replace: true })
   }
 
   return (
