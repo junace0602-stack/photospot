@@ -1,4 +1,4 @@
-import { loadGoogleMaps } from './googleMaps'
+import { loadPlacesLibrary } from './googleMaps'
 
 export interface AutocompleteResult {
   place_id: string
@@ -16,7 +16,8 @@ export interface PlaceDetail {
 
 export async function searchPlacesAutocomplete(query: string, regionCodes?: string[]): Promise<AutocompleteResult[]> {
   try {
-    await loadGoogleMaps()
+    // Places 라이브러리 지연 로드 (검색할 때만)
+    await loadPlacesLibrary()
   } catch {
     return []
   }
@@ -48,7 +49,8 @@ export async function searchPlacesAutocomplete(query: string, regionCodes?: stri
 
 export async function getPlaceDetails(placeId: string): Promise<PlaceDetail | null> {
   try {
-    await loadGoogleMaps()
+    // Places 라이브러리 지연 로드 (검색할 때만)
+    await loadPlacesLibrary()
   } catch {
     return null
   }

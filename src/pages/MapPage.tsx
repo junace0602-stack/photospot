@@ -21,8 +21,14 @@ import { loadGoogleMaps } from '../lib/googleMaps'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import type { Renderer } from '@googlemaps/markerclusterer'
 
-// 모듈 임포트 시 즉시 Google Maps 로딩 시작 (데이터 fetch와 병렬)
+// 모듈 임포트 시 즉시 Google Maps 로딩 시작 (앱 초기화와 병렬)
 const mapsReady = loadGoogleMaps()
+
+// 지도 인스턴스 전역 캐싱 (탭 이동해도 재사용)
+let cachedMapInstance: google.maps.Map | null = null
+let cachedClusterer: MarkerClusterer | null = null
+let cachedMarkers: Map<string, google.maps.marker.AdvancedMarkerElement> | null = null
+let cachedUserMarker: google.maps.marker.AdvancedMarkerElement | null = null
 
 const SEOUL = { lat: 37.5665, lng: 126.978 }
 
@@ -392,25 +398,71 @@ export default function MapPage() {
     currentTopRef.current = px
   }, [snappedTop, snapToPx])
 
-  /* ── 데이터 로드 + 지도 초기화 ── */
+  /* ── 데이터 로드 + 지도 초기화 (최적화) ── */
   useEffect(() => {
     if (!mapRef.current) return
 
-    const initMap = async (lat: number, lng: number, showUserMarker: boolean) => {
-      setUserPos({ lat, lng })
+    let mounted = true
 
-      const [placesRes, postsRes] = await Promise.all([
-        supabase.from('places').select('*'),
-        supabase
-          .from('posts')
-          .select('place_id, thumbnail_url, likes_count, created_at')
-          .order('likes_count', { ascending: false }),
-      ])
+    // 데이터 fetch 시작 (지도 로딩과 병렬)
+    const dataPromise = Promise.all([
+      supabase.from('places').select('*'),
+      supabase
+        .from('posts')
+        .select('place_id, thumbnail_url, likes_count, created_at')
+        .order('likes_count', { ascending: false }),
+    ])
+
+    const initMap = async () => {
+      // 1. Google Maps API 로딩 완료 대기
+      await mapsReady
+      if (!mounted || !mapRef.current) return
+
+      // 2. 캐시된 지도 인스턴스 재사용 또는 새로 생성
+      let map: google.maps.Map
+      if (cachedMapInstance) {
+        // 캐시된 인스턴스 재사용 (DOM에 다시 연결)
+        map = cachedMapInstance
+        mapRef.current.appendChild(map.getDiv())
+        mapInstanceRef.current = map
+        markersRef.current = cachedMarkers || new Map()
+        clustererRef.current = cachedClusterer
+        userLocationMarkerRef.current = cachedUserMarker
+        setMapReady(true)
+      } else {
+        // 서울 좌표로 먼저 지도 표시 (GPS 기다리지 않음)
+        map = new google.maps.Map(mapRef.current, {
+          center: SEOUL,
+          zoom: 11,
+          mapId: 'DEMO_MAP_ID',
+          gestureHandling: 'greedy',
+          zoomControl: false,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+        })
+        mapInstanceRef.current = map
+        cachedMapInstance = map
+
+        const minimizeSheet = () => {
+          skipTransitionRef.current = true
+          setSnappedTop(87)
+          setSelectedPlace(null)
+        }
+        map.addListener('click', minimizeSheet)
+        map.addListener('dragstart', minimizeSheet)
+
+        setMapReady(true)
+      }
+
+      // 3. 데이터 로드 완료 대기 후 마커 생성
+      const [placesRes, postsRes] = await dataPromise
+      if (!mounted) return
 
       const fetched = (placesRes.data ?? []) as Place[]
       setPlaces(fetched)
 
-      // 장소별 통계
+      // 장소별 통계 계산
       const stats = new Map<string, PlaceStats>()
       for (const p of postsRes.data ?? []) {
         const s = stats.get(p.place_id)
@@ -432,74 +484,82 @@ export default function MapPage() {
       }
       setPlaceStats(stats)
 
-      // Google Maps API 로딩 완료 대기 (모듈 로드 시 시작됨, 대부분 이미 완료)
-      await mapsReady
-
-      const map = new google.maps.Map(mapRef.current!, {
-        center: { lat, lng },
-        zoom: 11,
-        mapId: 'DEMO_MAP_ID',
-        gestureHandling: 'greedy',
-        zoomControl: false,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-      })
-      mapInstanceRef.current = map
-
-      // 마커 생성 (map 미설정 → clusterer가 관리)
-      const markerMap = new Map<string, google.maps.marker.AdvancedMarkerElement>()
-      fetched.forEach((place) => {
-        const marker = new google.maps.marker.AdvancedMarkerElement({
-          position: { lat: place.lat, lng: place.lng },
-          content: createPinContent(1),
+      // 4. 마커 생성 (캐시 없을 때만)
+      if (!cachedMarkers) {
+        const markerMap = new Map<string, google.maps.marker.AdvancedMarkerElement>()
+        fetched.forEach((place) => {
+          const marker = new google.maps.marker.AdvancedMarkerElement({
+            position: { lat: place.lat, lng: place.lng },
+            content: createPinContent(1),
+          })
+          marker.addListener('gmp-click', () => setSelectedPlace(place))
+          markerMap.set(place.id, marker)
         })
-        marker.addListener('gmp-click', () => setSelectedPlace(place))
-        markerMap.set(place.id, marker)
-      })
-      markersRef.current = markerMap
-
-      // 클러스터러 생성 (초기 마커 없음 → region effect가 추가)
-      clustererRef.current = new MarkerClusterer({
-        map,
-        markers: [],
-        renderer: clusterRenderer,
-      })
-
-      const minimizeSheet = () => {
-        skipTransitionRef.current = true
-        setSnappedTop(87)
-        setSelectedPlace(null)
+        markersRef.current = markerMap
+        cachedMarkers = markerMap
       }
 
-      map.addListener('click', minimizeSheet)
-      map.addListener('dragstart', minimizeSheet)
-
-      // GPS 위치 확보 시 주황색 마커 자동 표시
-      if (showUserMarker) {
-        const dot = document.createElement('div')
-        dot.style.cssText =
-          'width:18px;height:18px;background:#EA580C;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 1px 4px rgba(0,0,0,0.3);'
-        userLocationMarkerRef.current = new google.maps.marker.AdvancedMarkerElement({
-          position: { lat, lng },
+      // 5. 클러스터러 생성 (캐시 없을 때만)
+      if (!cachedClusterer) {
+        const clusterer = new MarkerClusterer({
           map,
-          content: dot,
-          zIndex: 9999,
+          markers: [],
+          renderer: clusterRenderer,
         })
+        clustererRef.current = clusterer
+        cachedClusterer = clusterer
       }
-
-      setMapReady(true)
     }
 
-    if (!navigator.geolocation) {
-      initMap(SEOUL.lat, SEOUL.lng, false)
-      return
+    // GPS 위치 요청 (백그라운드 - 지도 초기화 블로킹 안 함)
+    const requestGPS = () => {
+      if (!navigator.geolocation) return
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (!mounted) return
+          const lat = pos.coords.latitude
+          const lng = pos.coords.longitude
+          setUserPos({ lat, lng })
+
+          const map = mapInstanceRef.current
+          if (map) {
+            map.panTo({ lat, lng })
+            map.setZoom(11)
+          }
+
+          // 사용자 위치 마커 표시
+          if (!cachedUserMarker && map) {
+            const dot = document.createElement('div')
+            dot.style.cssText =
+              'width:18px;height:18px;background:#EA580C;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 1px 4px rgba(0,0,0,0.3);'
+            const marker = new google.maps.marker.AdvancedMarkerElement({
+              position: { lat, lng },
+              map,
+              content: dot,
+              zIndex: 9999,
+            })
+            userLocationMarkerRef.current = marker
+            cachedUserMarker = marker
+          } else if (cachedUserMarker) {
+            cachedUserMarker.position = { lat, lng }
+            userLocationMarkerRef.current = cachedUserMarker
+          }
+        },
+        () => {
+          // GPS 실패 시 서울 유지
+        },
+        { enableHighAccuracy: false, timeout: 5000 } // 빠른 응답 우선
+      )
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => initMap(pos.coords.latitude, pos.coords.longitude, true),
-      () => initMap(SEOUL.lat, SEOUL.lng, false),
-    )
+    // 지도 초기화와 GPS 요청 병렬 실행
+    initMap()
+    requestGPS()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   /* ── 국내/해외 전환 · 나라 필터 → 지도 뷰 + 마커 표시 ── */
