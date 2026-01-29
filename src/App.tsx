@@ -54,19 +54,29 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
   const isTermsPage = location.pathname === '/terms-agreement'
   const isNicknamePage = location.pathname === '/nickname-setup'
 
-  // 로그인 됐는데 프로필 없으면 약관 동의로
-  if (loggedIn && !profile && !isTermsPage) {
-    return <Navigate to="/terms-agreement" replace />
+  // sessionStorage에서 약관 동의 여부 확인
+  const termsAgreedInSession = sessionStorage.getItem('terms_agreed') === 'true'
+
+  // 로그인 됐는데 프로필 없는 경우 (신규 가입자)
+  if (loggedIn && !profile) {
+    // 약관 동의 했으면 닉네임 설정으로
+    if (termsAgreedInSession && !isNicknamePage) {
+      return <Navigate to="/nickname-setup" replace />
+    }
+    // 약관 동의 안 했으면 약관 동의로
+    if (!termsAgreedInSession && !isTermsPage) {
+      return <Navigate to="/terms-agreement" replace />
+    }
   }
 
-  // 프로필은 있는데 닉네임이 없는 경우 (신규 가입자)
+  // 프로필은 있는데 닉네임이 없는 경우 (기존 사용자 중 닉네임 미설정)
   if (loggedIn && profile && !profile.nickname) {
     // 약관 동의 안 했으면 약관 동의로
-    if (!profile.terms_agreed_at && !isTermsPage) {
+    if (!profile.terms_agreed_at && !termsAgreedInSession && !isTermsPage) {
       return <Navigate to="/terms-agreement" replace />
     }
     // 약관 동의 했으면 닉네임 설정으로
-    if (profile.terms_agreed_at && !isNicknamePage) {
+    if ((profile.terms_agreed_at || termsAgreedInSession) && !isNicknamePage) {
       return <Navigate to="/nickname-setup" replace />
     }
   }

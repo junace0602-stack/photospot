@@ -39,10 +39,15 @@ export default function NicknameSetupPage() {
   const handleSave = async () => {
     if (!user || !nickname.trim() || available !== true) return
     setSaving(true)
+
+    // 약관 동의 여부 확인 (TermsAgreementPage에서 저장한 값)
+    const termsAgreed = sessionStorage.getItem('terms_agreed') === 'true'
+
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       nickname: nickname.trim(),
       role: 'user',
+      terms_agreed_at: termsAgreed ? new Date().toISOString() : null,
     })
     setSaving(false)
     if (error) {
@@ -53,6 +58,9 @@ export default function NicknameSetupPage() {
       toast.error('저장에 실패했습니다: ' + error.message)
       return
     }
+
+    // sessionStorage 정리
+    sessionStorage.removeItem('terms_agreed')
     window.location.href = '/'
   }
 

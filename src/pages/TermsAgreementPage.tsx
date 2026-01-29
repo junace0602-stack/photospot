@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 /* ── 약관 내용 (TermsPage.tsx에서 가져옴) ────────────── */
@@ -185,10 +183,9 @@ function CheckboxItem({
 /* ── 메인 컴포넌트 ──────────────────────────────────── */
 
 export default function TermsAgreementPage() {
-  const { user, refreshProfile } = useAuth()
+  const { user } = useAuth()
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [privacyAgreed, setPrivacyAgreed] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [modalType, setModalType] = useState<'terms' | 'privacy' | null>(null)
 
   const allAgreed = termsAgreed && privacyAgreed
@@ -198,30 +195,13 @@ export default function TermsAgreementPage() {
     setPrivacyAgreed(checked)
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!user || !allAgreed) return
 
-    setSaving(true)
+    // 약관 동의 상태를 sessionStorage에 임시 저장
+    // 닉네임 설정 페이지에서 프로필 생성 시 함께 저장됨
+    sessionStorage.setItem('terms_agreed', 'true')
 
-    // upsert로 프로필이 없으면 생성, 있으면 업데이트
-    const { error } = await supabase
-      .from('profiles')
-      .upsert(
-        {
-          id: user.id,
-          terms_agreed_at: new Date().toISOString(),
-        },
-        { onConflict: 'id' }
-      )
-
-    if (error) {
-      toast.error('저장에 실패했습니다: ' + error.message)
-      setSaving(false)
-      return
-    }
-
-    await refreshProfile()
-    setSaving(false)
     // 닉네임 설정 페이지로 이동
     window.location.href = '/nickname-setup'
   }
@@ -268,14 +248,14 @@ export default function TermsAgreementPage() {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!allAgreed || saving}
+          disabled={!allAgreed}
           className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
             allAgreed
               ? 'bg-blue-600 text-white'
               : 'bg-gray-200 text-gray-400'
           }`}
         >
-          {saving ? '처리 중...' : '시작하기'}
+          시작하기
         </button>
       </div>
 
