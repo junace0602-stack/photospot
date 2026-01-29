@@ -119,11 +119,11 @@ function getEventStatus(event: Event): { label: string; color: string } {
 
 /**
  * Supabase Storage 이미지 URL에 transform 파라미터 추가
- * - 그리드용 중간 크기 이미지 로드 (width: 400)
+ * - 그리드용 중간 크기 이미지 로드 (width: 800, 레티나 2x 대응)
  * - 원본 URL 형식: https://xxx.supabase.co/storage/v1/object/public/images/xxx.webp
- * - 변환 URL 형식: https://xxx.supabase.co/storage/v1/render/image/public/images/xxx.webp?width=400
+ * - 변환 URL 형식: https://xxx.supabase.co/storage/v1/render/image/public/images/xxx.webp?width=800
  */
-function getResizedImageUrl(url: string, width: number = 400): string {
+function getResizedImageUrl(url: string, width: number = 800): string {
   if (!url) return url
 
   // Supabase Storage URL인지 확인
@@ -200,8 +200,8 @@ const LazyImage = memo(function LazyImage({
 const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (index: number) => void }) {
   if (urls.length === 0) return null
 
-  // 그리드용 리사이즈 URL (width: 400)
-  const resizedUrls = useMemo(() => urls.map(u => getResizedImageUrl(u, 400)), [urls])
+  // 그리드용 리사이즈 URL (width: 800, 레티나 2x 대응)
+  const resizedUrls = useMemo(() => urls.map(u => getResizedImageUrl(u, 800)), [urls])
 
   const click = (i: number) => (e: React.MouseEvent) => {
     e.stopPropagation()
