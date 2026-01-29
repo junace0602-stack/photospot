@@ -30,6 +30,9 @@ let cachedClusterer: MarkerClusterer | null = null
 let cachedMarkers: Map<string, google.maps.marker.AdvancedMarkerElement> | null = null
 let cachedUserMarker: google.maps.marker.AdvancedMarkerElement | null = null
 
+// 마커 클릭 핸들러 (컴포넌트 외부에서 접근 가능하도록)
+let markerClickHandler: ((placeId: string) => void) | null = null
+
 const SEOUL = { lat: 37.5665, lng: 126.978 }
 
 const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }> = {
@@ -492,7 +495,13 @@ export default function MapPage() {
             position: { lat: place.lat, lng: place.lng },
             content: createPinContent(1),
           })
-          marker.addListener('gmp-click', () => setSelectedPlace(place))
+          // 클릭 핸들러는 모듈 레벨 함수를 통해 호출 (캐시된 마커도 최신 핸들러 사용)
+          const placeId = place.id
+          marker.addListener('gmp-click', () => {
+            if (markerClickHandler) {
+              markerClickHandler(placeId)
+            }
+          })
           markerMap.set(place.id, marker)
         })
         markersRef.current = markerMap
@@ -767,9 +776,12 @@ export default function MapPage() {
     setSearchQuery('')
   }, [userPos])
 
-  // 등록된 장소 클릭 → 배너 표시
-  const handlePlaceClick = useCallback((place: Place & { distance: number }) => {
+  // 등록된 장소 클릭 → 배너 표시 (마커 클릭 & 목록 클릭 공용)
+  const handlePlaceClick = useCallback((place: Place & { distance?: number }) => {
     const stats = placeStats.get(place.id)
+    const dist = place.distance ?? (userPos
+      ? getDistanceKm(userPos.lat, userPos.lng, place.lat, place.lng)
+      : undefined)
 
     // 배너 설정
     setBannerPlace({
@@ -781,7 +793,7 @@ export default function MapPage() {
       lng: place.lng,
       thumbnail: stats?.thumbnail ?? undefined,
       postCount: stats?.postCount ?? 0,
-      distance: place.distance,
+      distance: dist,
     })
 
     // 지도 이동
@@ -793,7 +805,24 @@ export default function MapPage() {
     // 시트 접기
     setSnappedTop(87)
     setSearchQuery('')
-  }, [placeStats])
+    setSelectedPlace(null) // 이전 카드 숨기기
+  }, [placeStats, userPos])
+
+  // 마커 클릭 핸들러 (placeId로 place 찾아서 처리)
+  const handleMarkerClick = useCallback((placeId: string) => {
+    const place = places.find(p => p.id === placeId)
+    if (place) {
+      handlePlaceClick(place)
+    }
+  }, [places, handlePlaceClick])
+
+  // 마커 클릭 핸들러를 모듈 레벨 변수에 저장 (캐시된 마커도 접근 가능)
+  useEffect(() => {
+    markerClickHandler = handleMarkerClick
+    return () => {
+      markerClickHandler = null
+    }
+  }, [handleMarkerClick])
 
   // 배너에서 상세 페이지로 이동
   const handleBannerClick = useCallback(() => {
