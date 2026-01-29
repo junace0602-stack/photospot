@@ -734,57 +734,24 @@ export default function ListPage() {
             글이 없습니다.
           </div>
         ) : isPhoto ? (
-          /* ── 사진 탭: 카드형 ── */
-          <div className="space-y-3 p-4">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer"
-                onClick={() => { saveScrollBeforeNav(); navigate(`/community/${item.id}`) }}
-              >
-                {/* 프로필 헤더 */}
-                <div className="flex items-center gap-2.5 px-4 pt-3 pb-2">
-                  <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold text-gray-900">{displayName(item.author_nickname, item.is_anonymous, isAdminMode)}</span>
-                    <span className="ml-2 text-xs text-gray-400">{relativeTime(item.created_at)}</span>
-                  </div>
-                </div>
-                {/* 이벤트 태그 + 제목 */}
-                <div className="px-4 pb-2">
-                  {item.eventName && (
-                    <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-600 mb-1">
-                      {item.eventName} 챌린지
-                    </span>
-                  )}
-                  <p className="text-sm text-gray-900 font-medium line-clamp-2">{item.title}</p>
-                </div>
-                {/* 사진 그리드 */}
-                {item.imageUrls.length > 0 && (
-                  <div className="px-4 pb-2">
-                    <PhotoGrid
-                      urls={item.imageUrls}
-                      onPhotoClick={(i) => setLightbox({ urls: item.imageUrls, index: i })}
-                    />
-                  </div>
-                )}
-                {/* 하단 */}
-                <div className="flex items-center gap-4 px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
-                  <span className="flex items-center gap-1">
-                    <Eye className="w-3.5 h-3.5" />
-                    {item.view_count}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <ThumbsUp className="w-3.5 h-3.5" />
-                    {item.likes_count}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    {item.comment_count}
-                  </span>
-                </div>
-              </div>
-            ))}
+          /* ── 사진 탭: 인스타그램 스타일 3x3 그리드 ── */
+          <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
+            {items
+              .filter((item) => item.thumbnail_url)
+              .map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => { saveScrollBeforeNav(); navigate(`/community/${item.id}`) }}
+                  className="relative aspect-square overflow-hidden bg-gray-100"
+                >
+                  <LazyImage
+                    src={getLowQualityImageUrl(item.thumbnail_url!, 50)}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
           </div>
         ) : (
           /* ── 기본 목록형 (디시인사이드 스타일) ── */
