@@ -443,6 +443,7 @@ export default function MapPage() {
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
+          clickableIcons: false, // 기본 POI 클릭 비활성화
         })
         mapInstanceRef.current = map
         cachedMapInstance = map
