@@ -97,6 +97,8 @@ export default function SpotPostsPage() {
             <img
               src={representativeThumbnail}
               alt={placeName}
+              loading="lazy"
+              decoding="async"
               className="w-20 h-20 rounded-xl object-cover shrink-0"
             />
           ) : (
@@ -159,6 +161,8 @@ export default function SpotPostsPage() {
                   <img
                     src={post.thumbnail_url}
                     alt="썸네일"
+                    loading="lazy"
+                    decoding="async"
                     className="w-20 h-20 rounded-lg object-cover shrink-0"
                   />
                 )}

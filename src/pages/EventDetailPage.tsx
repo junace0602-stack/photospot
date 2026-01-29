@@ -303,7 +303,7 @@ function WinnerSelectModal({
                     {/* 썸네일 */}
                     <div className="relative shrink-0">
                       {post.thumbnail_url ? (
-                        <img src={post.thumbnail_url} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                        <img src={post.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-14 h-14 rounded-lg object-cover" />
                       ) : (
                         <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center">
                           <Trophy className="w-5 h-5 text-gray-300" />
@@ -574,7 +574,7 @@ export default function EventDetailPage() {
         {/* 챌린지 정보 카드 */}
         <div className="bg-white mx-4 mt-4 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {event.thumbnail_url && (
-            <img src={event.thumbnail_url} alt="" className="w-full h-48 object-cover" />
+            <img src={event.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-full h-48 object-cover" />
           )}
           <div className="p-4 space-y-3">
             <div className="flex items-center gap-2 flex-wrap">
@@ -715,7 +715,7 @@ export default function EventDetailPage() {
             </div>
             <div className="flex items-center gap-3">
               {topPost.thumbnail_url && (
-                <img src={topPost.thumbnail_url} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                <img src={topPost.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-14 h-14 rounded-lg object-cover" />
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">{topPost.title}</p>
@@ -771,7 +771,7 @@ export default function EventDetailPage() {
                       </div>
                     )}
                     {post.thumbnail_url ? (
-                      <img src={post.thumbnail_url} alt="" className="w-full h-32 object-cover" />
+                      <img src={post.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-full h-32 object-cover" />
                     ) : (
                       <div className="w-full h-32 bg-gray-100 flex items-center justify-center">
                         <Trophy className="w-8 h-8 text-gray-300" />

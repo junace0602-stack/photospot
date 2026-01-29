@@ -840,7 +840,7 @@ function WinnerSelectModal({
                     {/* 썸네일 */}
                     <div className="relative shrink-0">
                       {post.thumbnail_url ? (
-                        <img src={post.thumbnail_url} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                        <img src={post.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-14 h-14 rounded-lg object-cover" />
                       ) : (
                         <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center">
                           <Trophy className="w-5 h-5 text-gray-300" />
@@ -1030,7 +1030,7 @@ function EventManageTab() {
                 <div key={ev.id} className="bg-white rounded-xl p-4 shadow-sm">
                   <div className="flex gap-3">
                     {ev.thumbnail_url && (
-                      <img src={ev.thumbnail_url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                      <img src={ev.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -1081,7 +1081,7 @@ function EventManageTab() {
                 <div key={ev.id} className={`bg-white rounded-xl p-4 shadow-sm ${ev.hidden ? 'opacity-60' : ''}`}>
                   <div className="flex gap-3">
                     {ev.thumbnail_url && (
-                      <img src={ev.thumbnail_url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                      <img src={ev.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
