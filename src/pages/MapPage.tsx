@@ -10,6 +10,8 @@ import {
   X,
   Crosshair,
   Loader2,
+  Flame,
+  Camera,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { share } from '../utils/share'
@@ -360,6 +362,16 @@ export default function MapPage() {
   }
   const [bannerPlace, setBannerPlace] = useState<BannerPlace | null>(null)
   const tempMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null)
+
+  // 배너 인기글 목록
+  interface BannerPost {
+    id: string
+    title: string
+    thumbnail_url: string | null
+    likes_count: number
+  }
+  const [bannerPosts, setBannerPosts] = useState<BannerPost[]>([])
+  const [bannerPostsLoading, setBannerPostsLoading] = useState(false)
 
   const sheetState: 'peek' | 'half' | 'full' =
     snappedTop > 75 ? 'peek' : snappedTop > 25 ? 'half' : 'full'
@@ -839,12 +851,40 @@ export default function MapPage() {
   // 배너 닫기
   const closeBanner = useCallback(() => {
     setBannerPlace(null)
+    setBannerPosts([])
     // 임시 마커 제거
     if (tempMarkerRef.current) {
       tempMarkerRef.current.map = null
       tempMarkerRef.current = null
     }
   }, [])
+
+  // 배너 표시 시 인기글 로드
+  useEffect(() => {
+    if (!bannerPlace || bannerPlace.type !== 'registered') {
+      setBannerPosts([])
+      return
+    }
+
+    let cancelled = false
+    setBannerPostsLoading(true)
+
+    supabase
+      .from('posts')
+      .select('id, title, thumbnail_url, likes_count')
+      .eq('place_id', bannerPlace.id)
+      .order('likes_count', { ascending: false })
+      .limit(3)
+      .then(({ data }) => {
+        if (cancelled) return
+        setBannerPosts((data ?? []) as BannerPost[])
+        setBannerPostsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [bannerPlace])
 
   const handleRegionChange = useCallback((r: 'domestic' | 'international') => {
     setRegion(r)
@@ -1423,23 +1463,24 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* 하단 장소 배너 */}
+      {/* 하단 장소 배너 (중간 크기) */}
       {bannerPlace && (
         <div className="absolute bottom-0 left-0 right-0 z-30 p-4 pb-6">
-          <div
-            className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden cursor-pointer"
-            onClick={handleBannerClick}
-          >
-            <div className="flex items-center gap-3 p-3">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            {/* 상단: 장소 정보 (클릭 시 상세 페이지 이동) */}
+            <div
+              className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={handleBannerClick}
+            >
               {/* 썸네일 */}
               {bannerPlace.thumbnail ? (
                 <img
                   src={bannerPlace.thumbnail}
                   alt={bannerPlace.name}
-                  className="w-16 h-16 rounded-xl object-cover shrink-0"
+                  className="w-14 h-14 rounded-xl object-cover shrink-0"
                 />
               ) : (
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 ${
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${
                   bannerPlace.type === 'registered' ? 'bg-blue-50' : 'bg-orange-50'
                 }`}>
                   <MapPin className={`w-6 h-6 ${
@@ -1452,7 +1493,7 @@ export default function MapPage() {
                 <p className="text-base font-semibold text-gray-900 truncate">
                   {bannerPlace.name}
                 </p>
-                <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+                <div className="flex items-center gap-2 mt-0.5 text-sm text-gray-500">
                   {bannerPlace.distance !== undefined && (
                     <>
                       <span className="flex items-center gap-0.5">
@@ -1479,6 +1520,81 @@ export default function MapPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* 인기글 섹션 (등록된 장소만) */}
+            {bannerPlace.type === 'registered' && (
+              <div className="border-t border-gray-100">
+                {/* 섹션 헤더 */}
+                <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm font-semibold text-gray-700">인기 글</span>
+                </div>
+
+                {/* 인기글 목록 */}
+                {bannerPostsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                  </div>
+                ) : bannerPosts.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">
+                    아직 글이 없습니다
+                  </p>
+                ) : (
+                  <div className="px-3 pb-2">
+                    {bannerPosts.map((post) => (
+                      <button
+                        key={post.id}
+                        type="button"
+                        onClick={() => navigate(`/spots/${bannerPlace.id}/posts/${post.id}`)}
+                        className="w-full flex items-center gap-2.5 py-2 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                      >
+                        {/* 썸네일 */}
+                        {post.thumbnail_url ? (
+                          <img
+                            src={post.thumbnail_url}
+                            alt=""
+                            className="w-10 h-10 rounded-lg object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                            <Camera className="w-4 h-4 text-gray-300" />
+                          </div>
+                        )}
+                        {/* 제목 */}
+                        <p className="flex-1 text-sm text-gray-800 line-clamp-1">
+                          {post.title}
+                        </p>
+                        {/* 추천수 */}
+                        <span className="flex items-center gap-0.5 text-xs text-gray-400 shrink-0">
+                          <ThumbsUp className="w-3.5 h-3.5" />
+                          {post.likes_count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 전체보기 버튼 */}
+                <button
+                  type="button"
+                  onClick={handleBannerClick}
+                  className="w-full py-2.5 text-sm font-medium text-blue-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  전체보기
+                </button>
+              </div>
+            )}
+
+            {/* 미등록 장소: 전체보기 버튼만 */}
+            {bannerPlace.type === 'unregistered' && (
+              <button
+                type="button"
+                onClick={handleBannerClick}
+                className="w-full py-2.5 text-sm font-medium text-blue-600 border-t border-gray-100 hover:bg-gray-50 transition-colors"
+              >
+                상세보기
+              </button>
+            )}
           </div>
         </div>
       )}
