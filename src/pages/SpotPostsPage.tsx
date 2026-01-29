@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, ThumbsUp, MapPin, FileText, Tag } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -11,6 +11,9 @@ function formatDistance(km: number): string {
   return `${Math.round(km)}km`
 }
 
+// GPS 위치 캐싱 (세션 동안 유지)
+let cachedUserPos: { lat: number; lng: number } | null = null
+
 export default function SpotPostsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -19,28 +22,30 @@ export default function SpotPostsPage() {
   const [place, setPlace] = useState<Place | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
-  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null)
-  const [distance, setDistance] = useState<number | null>(null)
+  const [userPos, setUserPos] = useState(cachedUserPos)
 
-  // 사용자 위치 가져오기
+  // 사용자 위치 가져오기 (캐시 없을 때만)
   useEffect(() => {
+    if (cachedUserPos) return // 이미 캐시됨
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => {
+          const position = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+          cachedUserPos = position
+          setUserPos(position)
+        },
         () => {} // 권한 거부 시 무시
       )
     }
   }, [])
 
-  // 거리 계산
-  useEffect(() => {
-    if (place && userPos) {
-      const dist = Math.sqrt(
-        Math.pow((place.lat - userPos.lat) * 111, 2) +
-        Math.pow((place.lng - userPos.lng) * 88, 2)
-      )
-      setDistance(dist)
-    }
+  // 거리 계산 (메모이제이션)
+  const distance = useMemo(() => {
+    if (!place || !userPos) return null
+    return Math.sqrt(
+      Math.pow((place.lat - userPos.lat) * 111, 2) +
+      Math.pow((place.lng - userPos.lng) * 88, 2)
+    )
   }, [place, userPos])
 
   useEffect(() => {
@@ -68,8 +73,34 @@ export default function SpotPostsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-sm text-gray-400">
-        불러오는 중...
+      <div className="flex flex-col h-full bg-gray-50">
+        <header className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
+          <button type="button" onClick={() => navigate(-1)}>
+            <ArrowLeft className="w-6 h-6 text-gray-700" />
+          </button>
+          <div className="h-6 w-24 bg-gray-200 rounded animate-pulse" />
+        </header>
+        <div className="shrink-0 bg-white border-b border-gray-200 p-4">
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-xl bg-gray-200 animate-pulse shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
+              <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 p-4 space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex gap-3 bg-white rounded-xl p-3 shadow-sm">
+              <div className="w-20 h-20 rounded-lg bg-gray-200 animate-pulse shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse" />
+                <div className="h-3 w-1/2 bg-gray-200 rounded animate-pulse" />
+                <div className="h-3 w-1/4 bg-gray-200 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
