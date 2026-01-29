@@ -2,7 +2,6 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, mem
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ThumbsUp,
-  MessageCircle,
   Pencil,
   Camera,
   X,
@@ -169,66 +168,6 @@ function LazyImage({
     />
   )
 }
-
-/* ── 포토 그리드 (메모이제이션) ──────────────────────────────────── */
-
-const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (index: number) => void }) {
-  if (urls.length === 0) return null
-
-  // 그리드용 저화질 URL (quality: 50)
-  const lowQualityUrls = useMemo(() => urls.map(u => getLowQualityImageUrl(u, 50)), [urls])
-
-  const click = (i: number) => (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onPhotoClick?.(i)
-  }
-
-  if (urls.length === 1) {
-    return (
-      <div className="rounded-xl overflow-hidden cursor-pointer" onClick={click(0)}>
-        <LazyImage src={lowQualityUrls[0]} className="w-full max-h-80 object-cover" />
-      </div>
-    )
-  }
-
-  if (urls.length === 2) {
-    return (
-      <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
-        {lowQualityUrls.map((u, i) => (
-          <LazyImage key={i} src={u} className="w-full h-48 object-cover cursor-pointer" onClick={click(i)} />
-        ))}
-      </div>
-    )
-  }
-
-  if (urls.length === 3) {
-    return (
-      <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden" style={{ height: 240 }}>
-        <LazyImage src={lowQualityUrls[0]} className="w-full h-full object-cover cursor-pointer" style={{ gridRow: '1/3' }} onClick={click(0)} />
-        <LazyImage src={lowQualityUrls[1]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(1)} />
-        <LazyImage src={lowQualityUrls[2]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(2)} />
-      </div>
-    )
-  }
-
-  // 4+
-  const show = lowQualityUrls.slice(0, 4)
-  const extra = urls.length - 4
-  return (
-    <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
-      {show.map((u, i) => (
-        <div key={i} className="relative cursor-pointer" onClick={click(i)}>
-          <LazyImage src={u} className="w-full h-32 object-cover" />
-          {i === 3 && extra > 0 && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
-              <span className="text-white text-lg font-bold">+{extra}</span>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-})
 
 /* ── 라이트박스 (메모이제이션) ────────────────────────────────────── */
 
