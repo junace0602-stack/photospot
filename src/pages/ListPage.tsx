@@ -695,10 +695,7 @@ export default function ListPage() {
         ) : (
           /* ── 기본 목록형 (디시인사이드 스타일) ── */
           <div className="bg-white">
-            {items.map((item) => {
-              const hasImage = item.thumbnail_url || item.imageUrls.length > 0
-
-              return (
+            {items.map((item) => (
                 <Link key={item.id} to={`/community/${item.id}`} className="block" onClick={saveScrollBeforeNav}>
                   <div className="flex items-start gap-2 px-4 py-2.5 border-b border-gray-100">
                     {/* 콘텐츠 영역: 좌우 분산 */}
@@ -706,10 +703,9 @@ export default function ListPage() {
                       {/* 왼쪽: 제목+뱃지, 닉네임 */}
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-gray-900 font-medium line-clamp-1">
-                          {item.eventName && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 mr-1.5">
-                              {item.eventName}
-                            </span>
+                          {/* 사진 있으면 맨 앞에 카메라 아이콘 */}
+                          {item.thumbnail_url && (
+                            <Camera className="inline-block w-3.5 h-3.5 mr-1 text-gray-400 align-text-bottom" />
                           )}
                           {item.title}
                           {item.comment_count > 0 && (
@@ -717,9 +713,11 @@ export default function ListPage() {
                               [{item.comment_count}]
                             </span>
                           )}
-                          {/* 사진 있으면 아이콘 표시 */}
-                          {hasImage && (
-                            <Camera className="inline-block w-3.5 h-3.5 ml-1 text-gray-400" />
+                          {/* 챌린지 뱃지는 맨 뒤에 */}
+                          {item.eventName && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 ml-1.5 align-text-bottom">
+                              {item.eventName}
+                            </span>
                           )}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400">
@@ -749,8 +747,7 @@ export default function ListPage() {
                     </div>
                   </div>
                 </Link>
-              )
-            })}
+              ))}
           </div>
         )}
 
