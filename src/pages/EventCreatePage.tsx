@@ -67,7 +67,7 @@ export default function EventCreatePage() {
     startDate &&
     endDate &&
     winnerCriteria.trim() &&
-    (!hasPrize || prizeName.trim()) &&
+    (!hasPrize || (prizeName.trim() && prizeImageFile)) &&
     !submitting
 
   const handleSubmit = async () => {
@@ -302,10 +302,10 @@ export default function EventCreatePage() {
               {/* 기프티콘 이미지 */}
               <div>
                 <label className="block text-sm text-gray-600 mb-1">
-                  기프티콘 이미지 (선택)
+                  기프티콘 이미지 <span className="text-red-500">*</span>
                 </label>
                 <p className="text-xs text-gray-400 mb-2">
-                  우승자에게 전달할 기프티콘 이미지를 미리 첨부할 수 있습니다
+                  우승자에게 전달할 기프티콘 이미지를 첨부해주세요
                 </p>
                 {prizeImagePreview ? (
                   <div className="relative inline-block">

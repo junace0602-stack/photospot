@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, ThumbsUp } from 'lucide-react'
+import { ArrowLeft, Plus, ThumbsUp, MapPin, FileText, Tag } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Place, Post } from '../lib/types'
 import { useAuth } from '../contexts/AuthContext'
+
+function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)}m`
+  if (km < 10) return `${km.toFixed(1)}km`
+  return `${Math.round(km)}km`
+}
 
 export default function SpotPostsPage() {
   const { id } = useParams()
@@ -13,6 +19,29 @@ export default function SpotPostsPage() {
   const [place, setPlace] = useState<Place | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null)
+  const [distance, setDistance] = useState<number | null>(null)
+
+  // 사용자 위치 가져오기
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {} // 권한 거부 시 무시
+      )
+    }
+  }, [])
+
+  // 거리 계산
+  useEffect(() => {
+    if (place && userPos) {
+      const dist = Math.sqrt(
+        Math.pow((place.lat - userPos.lat) * 111, 2) +
+        Math.pow((place.lng - userPos.lng) * 88, 2)
+      )
+      setDistance(dist)
+    }
+  }, [place, userPos])
 
   useEffect(() => {
     if (!id) return
@@ -45,6 +74,12 @@ export default function SpotPostsPage() {
     )
   }
 
+  // 대표 이미지 (첫 번째 글의 썸네일)
+  const representativeThumbnail = posts[0]?.thumbnail_url
+
+  // 카테고리 추출 (첫 번째 글의 카테고리들)
+  const categories = posts[0]?.categories ?? []
+
   return (
     <div className="relative flex flex-col h-full bg-gray-50">
       <header className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
@@ -53,6 +88,56 @@ export default function SpotPostsPage() {
         </button>
         <h1 className="text-lg font-bold">{placeName}</h1>
       </header>
+
+      {/* 상단 배너 */}
+      <div className="shrink-0 bg-white border-b border-gray-200 p-4">
+        <div className="flex items-center gap-4">
+          {/* 썸네일 */}
+          {representativeThumbnail ? (
+            <img
+              src={representativeThumbnail}
+              alt={placeName}
+              className="w-20 h-20 rounded-xl object-cover shrink-0"
+            />
+          ) : (
+            <div className="w-20 h-20 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+              <MapPin className="w-8 h-8 text-blue-500" />
+            </div>
+          )}
+          {/* 정보 */}
+          <div className="flex-1 min-w-0">
+            <p className="text-lg font-bold text-gray-900 truncate">
+              {placeName}
+            </p>
+            <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-500">
+              {distance !== null && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  {formatDistance(distance)}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <FileText className="w-4 h-4" />
+                글 {posts.length}개
+              </span>
+            </div>
+            {/* 카테고리 태그 */}
+            {categories.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <Tag className="w-3.5 h-3.5 text-gray-400" />
+                {categories.slice(0, 3).map((cat) => (
+                  <span
+                    key={cat}
+                    className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
+                  >
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {posts.length === 0 ? (

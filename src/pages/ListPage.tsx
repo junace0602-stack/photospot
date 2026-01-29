@@ -690,7 +690,7 @@ export default function ListPage() {
             {items.map((item) => (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer"
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer"
                 onClick={() => { saveScrollBeforeNav(); navigate(`/community/${item.id}`) }}
               >
                 {/* 프로필 헤더 */}
@@ -720,7 +720,7 @@ export default function ListPage() {
                   </div>
                 )}
                 {/* 하단 */}
-                <div className="flex items-center gap-4 px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
+                <div className="flex items-center gap-4 px-4 py-2.5 border-t border-gray-50 dark:border-gray-700 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
                     <Eye className="w-3.5 h-3.5" />
                     {item.view_count}

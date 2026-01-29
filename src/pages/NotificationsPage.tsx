@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, MessageCircle, TrendingUp, Reply, Settings, ChevronDown, ChevronUp, Crown, Gift, X, Download } from 'lucide-react'
+import { ArrowLeft, MessageCircle, TrendingUp, Reply, Settings, ChevronDown, ChevronUp, Crown, Gift, X, Download, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -39,92 +39,6 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
         }`}
       />
     </button>
-  )
-}
-
-/* ── 연락처 입력 모달 ────────────────────────────── */
-
-function ContactInputModal({
-  onClose,
-  onSubmit,
-}: {
-  onClose: () => void
-  onSubmit: (contact: string) => Promise<void>
-}) {
-  const [contactType, setContactType] = useState<'email' | 'phone'>('email')
-  const [contact, setContact] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-
-  const handleSubmit = async () => {
-    if (!contact.trim()) return
-    setSubmitting(true)
-    await onSubmit(contact.trim())
-    setSubmitting(false)
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-[90%] max-w-sm bg-white rounded-2xl p-5">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-            <Gift className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-gray-900">상품 수령 정보</h3>
-            <p className="text-xs text-gray-500">기프티콘 전송을 위해 연락처를 입력해주세요</p>
-          </div>
-        </div>
-
-        <div className="flex gap-2 mb-3">
-          <button
-            type="button"
-            onClick={() => setContactType('email')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium ${
-              contactType === 'email' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            이메일
-          </button>
-          <button
-            type="button"
-            onClick={() => setContactType('phone')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium ${
-              contactType === 'phone' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            전화번호
-          </button>
-        </div>
-
-        <input
-          type={contactType === 'email' ? 'email' : 'tel'}
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-          placeholder={contactType === 'email' ? 'example@email.com' : '010-1234-5678'}
-          className="w-full px-4 py-3 bg-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-200"
-        />
-
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={!contact.trim() || submitting}
-          className={`w-full mt-4 py-3 rounded-xl text-sm font-semibold ${
-            contact.trim() && !submitting ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'
-          }`}
-        >
-          {submitting ? '저장 중...' : '연락처 저장'}
-        </button>
-      </div>
-    </div>
   )
 }
 
@@ -200,7 +114,6 @@ export default function NotificationsPage() {
   const [settingsLoading, setSettingsLoading] = useState(true)
 
   // 모달 상태
-  const [contactModal, setContactModal] = useState<{ challengeId: string; notificationId: string } | null>(null)
   const [imageViewer, setImageViewer] = useState<string | null>(null)
 
   // 알림 목록 로드
@@ -281,31 +194,8 @@ export default function NotificationsPage() {
       setItems((p) => p.map((n) => (n.id === item.id ? { ...n, is_read: true } : n)))
     }
 
-    // 우승자 알림이고 상품이 있는 경우 연락처 입력 모달
-    if (item.type === 'winner' && item.metadata) {
-      try {
-        const meta = JSON.parse(item.metadata)
-        if (meta.has_prize && meta.challenge_id) {
-          // 이미 연락처를 입력했는지 확인
-          const { data: winnerData } = await supabase
-            .from('challenge_winners')
-            .select('contact_info')
-            .eq('challenge_id', meta.challenge_id)
-            .eq('user_id', user?.id ?? '')
-            .maybeSingle()
-
-          if (!winnerData?.contact_info) {
-            setContactModal({ challengeId: meta.challenge_id, notificationId: item.id })
-            return
-          }
-        }
-      } catch {
-        // JSON 파싱 실패 시 무시
-      }
-    }
-
-    // 이미지가 있는 알림 (기프티콘)
-    if (item.type === 'prize' && item.image_url) {
+    // 이미지가 있는 알림 (우승 + 기프티콘)
+    if (item.image_url) {
       setImageViewer(item.image_url)
       return
     }
@@ -314,18 +204,12 @@ export default function NotificationsPage() {
     navigate(item.link)
   }
 
-  // 연락처 저장
-  const saveContact = async (contact: string) => {
-    if (!contactModal || !user) return
-
-    await supabase
-      .from('challenge_winners')
-      .update({ contact_info: contact })
-      .eq('challenge_id', contactModal.challengeId)
-      .eq('user_id', user.id)
-
-    setContactModal(null)
-    toast.success('연락처가 저장되었습니다. 상품이 곧 전달됩니다!')
+  // 알림 삭제
+  const deleteNotification = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    await supabase.from('notifications').delete().eq('id', id)
+    setItems((p) => p.filter((n) => n.id !== id))
+    toast.success('알림이 삭제되었습니다.')
   }
 
   const markAllRead = async () => {
@@ -474,57 +358,62 @@ export default function NotificationsPage() {
         ) : (
           <div>
             {items.map((item) => (
-              <button
+              <div
                 key={item.id}
-                type="button"
-                onClick={() => handleClick(item)}
-                className={`w-full flex items-start gap-3 px-4 py-3.5 text-left border-b border-gray-100 transition-colors ${
+                className={`relative flex items-start gap-3 px-4 py-3.5 border-b border-gray-100 transition-colors ${
                   item.is_read ? 'bg-white' : 'bg-blue-50'
                 }`}
               >
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${getIconBg(item.type)}`}
+                <button
+                  type="button"
+                  onClick={() => handleClick(item)}
+                  className="flex items-start gap-3 flex-1 text-left"
                 >
-                  {getIcon(item.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm leading-snug ${
-                      item.is_read ? 'text-gray-600' : 'text-gray-900 font-semibold'
-                    }`}
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${getIconBg(item.type)}`}
                   >
-                    {item.message}
-                  </p>
-                  {/* 이미지 미리보기 (기프티콘) */}
-                  {item.image_url && (
-                    <div className="mt-2">
-                      <img
-                        src={item.image_url}
-                        alt="첨부 이미지"
-                        className="w-20 h-20 rounded-lg object-cover border border-gray-200"
-                      />
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-400 mt-1">
-                    {formatTime(item.created_at)}
-                  </p>
-                </div>
+                    {getIcon(item.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm leading-snug ${
+                        item.is_read ? 'text-gray-600' : 'text-gray-900 font-semibold'
+                      }`}
+                    >
+                      {item.message}
+                    </p>
+                    {/* 이미지 미리보기 (기프티콘) */}
+                    {item.image_url && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img
+                          src={item.image_url}
+                          alt="기프티콘"
+                          className="w-20 h-20 rounded-lg object-cover border border-gray-200"
+                        />
+                        <span className="text-xs text-blue-600 font-medium">탭하여 저장</span>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1">
+                      {formatTime(item.created_at)}
+                    </p>
+                  </div>
+                </button>
+                {/* 삭제 버튼 */}
+                <button
+                  type="button"
+                  onClick={(e) => deleteNotification(item.id, e)}
+                  className="p-1.5 text-gray-300 hover:text-red-500 shrink-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
                 {!item.is_read && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1.5" />
+                  <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500" />
                 )}
-              </button>
+              </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* 연락처 입력 모달 */}
-      {contactModal && (
-        <ContactInputModal
-          onClose={() => setContactModal(null)}
-          onSubmit={saveContact}
-        />
-      )}
 
       {/* 이미지 뷰어 모달 */}
       {imageViewer && (

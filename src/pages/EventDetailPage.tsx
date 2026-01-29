@@ -232,37 +232,22 @@ function WinnerSelectModal({
       winner_post_id: selectedPost.id,
     }).eq('id', event.id)
 
-    // 3. 우승자에게 알림
-    if (event.has_prize) {
-      // 상품이 있는 경우: 연락처 입력 요청
+    // 3. 우승자에게 알림 (상품 이미지 포함)
+    if (event.has_prize && event.prize_image_url) {
+      // 상품이 있는 경우: 축하 메시지 + 기프티콘 이미지 동봉
       await supabase.from('notifications').insert({
         user_id: selectedPost.user_id,
         type: 'winner',
-        message: `축하합니다! "${event.title}" 챌린지에서 우승하셨습니다! 상품 수령을 위해 연락처를 입력해주세요.`,
+        message: `축하합니다! "${event.title}" 챌린지에서 우승하셨습니다! 상품: ${event.prize}`,
         link: `/events/${event.id}`,
-        metadata: JSON.stringify({
-          challenge_id: event.id,
-          has_prize: true,
-          prize: event.prize,
-        }),
+        image_url: event.prize_image_url,
       })
 
-      // 기프티콘 이미지가 있으면 바로 전송
-      if (event.prize_image_url) {
-        await supabase.from('notifications').insert({
-          user_id: selectedPost.user_id,
-          type: 'prize',
-          message: `"${event.title}" 챌린지 상품입니다! 이미지를 탭하여 저장하세요.`,
-          link: `/events/${event.id}`,
-          image_url: event.prize_image_url,
-        })
-
-        // prize_sent 업데이트
-        await supabase
-          .from('challenge_winners')
-          .update({ prize_sent: true })
-          .eq('id', winnerData.id)
-      }
+      // prize_sent 업데이트
+      await supabase
+        .from('challenge_winners')
+        .update({ prize_sent: true })
+        .eq('id', winnerData.id)
     } else {
       // 상품이 없는 경우: 축하 알림만
       await supabase.from('notifications').insert({
@@ -270,10 +255,6 @@ function WinnerSelectModal({
         type: 'winner',
         message: `축하합니다! "${event.title}" 챌린지에서 우승하셨습니다!`,
         link: `/events/${event.id}`,
-        metadata: JSON.stringify({
-          challenge_id: event.id,
-          has_prize: false,
-        }),
       })
     }
 

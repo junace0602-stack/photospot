@@ -31,10 +31,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (saved === 'dark' || saved === 'light') {
       return saved
     }
-    // 시스템 설정 확인
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark'
-    }
+    // 설정 없으면 기본 라이트모드
     return 'light'
   })
 

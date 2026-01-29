@@ -237,17 +237,17 @@ interface PlaceStats {
 interface PlaceItemProps {
   place: Place & { distance: number }
   stats: PlaceStats | undefined
-  onNavigate: (id: string) => void
+  onSelect: (place: Place & { distance: number }) => void
 }
 
 const PlaceItem = memo(function PlaceItem({
   place,
   stats,
-  onNavigate,
+  onSelect,
 }: PlaceItemProps) {
-  const handleClick = () => onNavigate(place.id)
+  const handleClick = () => onSelect(place)
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') onNavigate(place.id)
+    if (e.key === 'Enter') onSelect(place)
   }
 
   return (
@@ -325,6 +325,31 @@ export default function MapPage() {
   // 목록 컨트롤
   const [listSort, setListSort] = useState<'nearest' | 'newest' | 'popular'>('nearest')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Google Places 검색 결과 (New API)
+  interface GooglePlaceResult {
+    id: string
+    displayName: string
+    formattedAddress: string
+    location: { lat: number; lng: number }
+  }
+  const [googlePlaces, setGooglePlaces] = useState<GooglePlaceResult[]>([])
+  const [searchingGoogle, setSearchingGoogle] = useState(false)
+
+  // 하단 장소 배너 (등록된 장소 또는 미등록 장소)
+  interface BannerPlace {
+    type: 'registered' | 'unregistered'
+    id: string
+    name: string
+    address: string
+    lat: number
+    lng: number
+    thumbnail?: string
+    postCount?: number
+    distance?: number
+  }
+  const [bannerPlace, setBannerPlace] = useState<BannerPlace | null>(null)
+  const tempMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null)
 
   const sheetState: 'peek' | 'half' | 'full' =
     snappedTop > 75 ? 'peek' : snappedTop > 25 ? 'half' : 'full'
@@ -582,10 +607,159 @@ export default function MapPage() {
 
   const isCountrySearching = region === 'international' && !countryFilter && countrySearch.trim().length > 0
 
-  const onNavigate = useCallback(
-    (id: string) => navigate(`/spots/${id}`),
-    [navigate],
-  )
+  // Google Places 검색 (DB에 결과 없을 때) - New API 사용
+  useEffect(() => {
+    if (!searchQuery.trim() || region !== 'domestic') {
+      setGooglePlaces([])
+      return
+    }
+
+    // DB에 결과가 있으면 Google 검색 안 함
+    if (displayedPlaces.length > 0) {
+      setGooglePlaces([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchingGoogle(true)
+      try {
+        // Places API (New) - searchByText 사용
+        const { Place } = await google.maps.importLibrary('places') as google.maps.PlacesLibrary
+        const { places } = await Place.searchByText({
+          textQuery: searchQuery,
+          fields: ['id', 'displayName', 'formattedAddress', 'location'],
+          maxResultCount: 10,
+          region: 'kr',
+        })
+
+        if (places && places.length > 0) {
+          setGooglePlaces(
+            places.map((p) => ({
+              id: p.id || '',
+              displayName: p.displayName || '',
+              formattedAddress: p.formattedAddress || '',
+              location: p.location
+                ? { lat: p.location.lat(), lng: p.location.lng() }
+                : { lat: 0, lng: 0 },
+            }))
+          )
+        } else {
+          setGooglePlaces([])
+        }
+      } catch {
+        setGooglePlaces([])
+      } finally {
+        setSearchingGoogle(false)
+      }
+    }, 500) // debounce
+
+    return () => clearTimeout(timer)
+  }, [searchQuery, region, displayedPlaces.length])
+
+  // Google Places 결과 클릭 핸들러
+  const handleGooglePlaceClick = useCallback((place: GooglePlaceResult) => {
+    if (!place.location || !mapInstanceRef.current) return
+
+    const { lat, lng } = place.location
+
+    // 거리 계산
+    const dist = userPos
+      ? Math.sqrt(Math.pow((lat - userPos.lat) * 111, 2) + Math.pow((lng - userPos.lng) * 88, 2))
+      : undefined
+
+    // 배너 설정
+    setBannerPlace({
+      type: 'unregistered',
+      id: place.id,
+      name: place.displayName,
+      address: place.formattedAddress,
+      lat,
+      lng,
+      postCount: 0,
+      distance: dist,
+    })
+
+    // 지도 이동
+    mapInstanceRef.current.panTo({ lat, lng })
+    mapInstanceRef.current.setZoom(15)
+
+    // 기존 임시 마커 제거
+    if (tempMarkerRef.current) {
+      tempMarkerRef.current.map = null
+    }
+
+    // 임시 마커 표시 (주황색)
+    const markerContent = document.createElement('div')
+    markerContent.innerHTML = `
+      <div style="width:32px;height:32px;background:#f97316;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      </div>
+    `
+    tempMarkerRef.current = new google.maps.marker.AdvancedMarkerElement({
+      map: mapInstanceRef.current,
+      position: { lat, lng },
+      title: place.displayName || '검색 결과',
+      content: markerContent,
+    })
+
+    setSnappedTop(87) // 시트 접기
+    setSearchQuery('')
+  }, [userPos])
+
+  // 등록된 장소 클릭 → 배너 표시
+  const handlePlaceClick = useCallback((place: Place & { distance: number }) => {
+    const stats = placeStats.get(place.id)
+
+    // 배너 설정
+    setBannerPlace({
+      type: 'registered',
+      id: place.id,
+      name: place.name,
+      address: '',
+      lat: place.lat,
+      lng: place.lng,
+      thumbnail: stats?.thumbnail ?? undefined,
+      postCount: stats?.postCount ?? 0,
+      distance: place.distance,
+    })
+
+    // 지도 이동
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.panTo({ lat: place.lat, lng: place.lng })
+      mapInstanceRef.current.setZoom(15)
+    }
+
+    // 시트 접기
+    setSnappedTop(87)
+    setSearchQuery('')
+  }, [placeStats])
+
+  // 배너에서 상세 페이지로 이동
+  const handleBannerClick = useCallback(() => {
+    if (!bannerPlace) return
+    if (bannerPlace.type === 'registered') {
+      navigate(`/spots/${bannerPlace.id}`)
+    } else {
+      // 미등록 장소 - 쿼리 파라미터로 정보 전달
+      const params = new URLSearchParams({
+        name: bannerPlace.name,
+        address: bannerPlace.address,
+        lat: String(bannerPlace.lat),
+        lng: String(bannerPlace.lng),
+      })
+      navigate(`/spots/unregistered?${params}`)
+    }
+  }, [bannerPlace, navigate])
+
+  // 배너 닫기
+  const closeBanner = useCallback(() => {
+    setBannerPlace(null)
+    // 임시 마커 제거
+    if (tempMarkerRef.current) {
+      tempMarkerRef.current.map = null
+      tempMarkerRef.current = null
+    }
+  }, [])
 
   const handleRegionChange = useCallback((r: 'domestic' | 'international') => {
     setRegion(r)
@@ -1072,18 +1246,64 @@ export default function MapPage() {
               {/* 장소 목록 */}
               <div ref={listRef} className="flex-1 overflow-y-auto">
                 {displayedPlaces.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">
-                    {region === 'international'
-                      ? '해외 출사지가 없습니다.'
-                      : '등록된 장소가 없습니다.'}
-                  </p>
+                  <>
+                    {/* Google Places 검색 결과 */}
+                    {region === 'domestic' && searchQuery.trim() && (
+                      <>
+                        {searchingGoogle ? (
+                          <p className="text-sm text-gray-400 text-center py-8">
+                            검색 중...
+                          </p>
+                        ) : googlePlaces.length > 0 ? (
+                          <>
+                            <p className="text-xs text-gray-500 px-4 py-2 bg-gray-50">
+                              Google 검색 결과 (등록되지 않은 장소)
+                            </p>
+                            {googlePlaces.map((gp, idx) => (
+                              <button
+                                key={gp.id || idx}
+                                type="button"
+                                onClick={() => handleGooglePlaceClick(gp)}
+                                className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50"
+                              >
+                                <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                                  <MapPin className="w-5 h-5 text-orange-500" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-medium text-gray-900 line-clamp-1">
+                                    {gp.displayName}
+                                  </span>
+                                  <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">
+                                    {gp.formattedAddress}
+                                  </p>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-400 text-center py-8">
+                            "{searchQuery}" 검색 결과가 없습니다.
+                          </p>
+                        )}
+                      </>
+                    )}
+                    {/* 검색어 없을 때 기본 메시지 */}
+                    {(!searchQuery.trim() || region === 'international') && (
+                      <p className="text-sm text-gray-400 text-center py-8">
+                        {region === 'international'
+                          ? '해외 출사지가 없습니다.'
+                          : '등록된 장소가 없습니다.'}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   displayedPlaces.map((place) => (
                     <PlaceItem
                       key={place.id}
                       place={place}
                       stats={placeStats.get(place.id)}
-                      onNavigate={onNavigate}
+                      onSelect={handlePlaceClick}
                     />
                   ))
                 )}
@@ -1092,6 +1312,66 @@ export default function MapPage() {
           )
         )}
       </div>
+
+      {/* 하단 장소 배너 */}
+      {bannerPlace && (
+        <div className="absolute bottom-0 left-0 right-0 z-30 p-4 pb-6">
+          <div
+            className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden cursor-pointer"
+            onClick={handleBannerClick}
+          >
+            <div className="flex items-center gap-3 p-3">
+              {/* 썸네일 */}
+              {bannerPlace.thumbnail ? (
+                <img
+                  src={bannerPlace.thumbnail}
+                  alt={bannerPlace.name}
+                  className="w-16 h-16 rounded-xl object-cover shrink-0"
+                />
+              ) : (
+                <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 ${
+                  bannerPlace.type === 'registered' ? 'bg-blue-50' : 'bg-orange-50'
+                }`}>
+                  <MapPin className={`w-6 h-6 ${
+                    bannerPlace.type === 'registered' ? 'text-blue-500' : 'text-orange-500'
+                  }`} />
+                </div>
+              )}
+              {/* 정보 */}
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-semibold text-gray-900 truncate">
+                  {bannerPlace.name}
+                </p>
+                <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+                  {bannerPlace.distance !== undefined && (
+                    <>
+                      <span className="flex items-center gap-0.5">
+                        <MapPin className="w-3.5 h-3.5" />
+                        {formatDistance(bannerPlace.distance)}
+                      </span>
+                      <span>·</span>
+                    </>
+                  )}
+                  <span className="flex items-center gap-0.5">
+                    <FileText className="w-3.5 h-3.5" />
+                    {bannerPlace.type === 'registered'
+                      ? `글 ${bannerPlace.postCount ?? 0}개`
+                      : '등록된 글 없음'}
+                  </span>
+                </div>
+              </div>
+              {/* 닫기 버튼 */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); closeBanner() }}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

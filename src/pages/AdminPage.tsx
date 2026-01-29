@@ -21,7 +21,6 @@ import {
   PenLine,
   Crown,
   Gift,
-  Send,
   ImagePlus,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -1552,7 +1551,6 @@ interface WinnerItem {
   challenge_id: string
   user_id: string
   post_id: string
-  contact_info: string | null
   prize_sent: boolean
   created_at: string
   // joined
@@ -1567,7 +1565,6 @@ interface WinnerItem {
 function WinnersTab() {
   const [winners, setWinners] = useState<WinnerItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [sendingTo, setSendingTo] = useState<string | null>(null)
 
   // 특정 유저에게 알림 보내기 모달
   const [notifyModal, setNotifyModal] = useState<{ winner: WinnerItem } | null>(null)
@@ -1631,42 +1628,6 @@ function WinnersTab() {
   useEffect(() => {
     loadWinners()
   }, [])
-
-  // 기프티콘 전송 (저장된 이미지로)
-  const sendPrize = async (winner: WinnerItem) => {
-    if (!winner.prize_image_url) {
-      toast.error('전송할 기프티콘 이미지가 없습니다. 알림 버튼으로 이미지를 직접 첨부해서 보내세요.')
-      return
-    }
-    if (!winner.contact_info) {
-      toast.error('우승자가 아직 연락처를 입력하지 않았습니다.')
-      return
-    }
-
-    setSendingTo(winner.id)
-
-    // 알림 생성
-    await supabase.from('notifications').insert({
-      user_id: winner.user_id,
-      type: 'prize',
-      message: `"${winner.challenge_title}" 챌린지 상품이 도착했습니다! 이미지를 탭하여 저장하세요.`,
-      link: `/events/${winner.challenge_id}`,
-      image_url: winner.prize_image_url,
-    })
-
-    // prize_sent 업데이트
-    await supabase
-      .from('challenge_winners')
-      .update({ prize_sent: true })
-      .eq('id', winner.id)
-
-    setWinners(prev => prev.map(w =>
-      w.id === winner.id ? { ...w, prize_sent: true } : w
-    ))
-
-    setSendingTo(null)
-    toast.success('기프티콘이 전송되었습니다!')
-  }
 
   // 전송 완료 처리
   const markAsSent = async (winnerId: string) => {
@@ -1741,10 +1702,7 @@ function WinnersTab() {
     if (winner.prize_sent) {
       return { label: '전송 완료', color: 'bg-green-100 text-green-700' }
     }
-    if (winner.contact_info) {
-      return { label: '전송 가능', color: 'bg-blue-100 text-blue-700' }
-    }
-    return { label: '연락처 대기', color: 'bg-yellow-100 text-yellow-700' }
+    return { label: '전송 대기', color: 'bg-yellow-100 text-yellow-700' }
   }
 
   if (loading) {
@@ -1789,11 +1747,6 @@ function WinnersTab() {
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${status.color}`}>
                         {status.label}
                       </span>
-                      {winner.contact_info && (
-                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded">
-                          {winner.contact_info}
-                        </span>
-                      )}
                       <span className="text-[10px] text-gray-400">
                         {new Date(winner.created_at).toLocaleDateString('ko-KR')}
                       </span>
@@ -1804,17 +1757,6 @@ function WinnersTab() {
                 {/* 상품이 있는 경우에만 버튼 표시 */}
                 {winner.has_prize && (
                   <div className="flex gap-2 mt-3">
-                    {!winner.prize_sent && winner.prize_image_url && winner.contact_info && (
-                      <button
-                        type="button"
-                        onClick={() => sendPrize(winner)}
-                        disabled={sendingTo === winner.id}
-                        className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium"
-                      >
-                        <Send className="w-4 h-4" />
-                        {sendingTo === winner.id ? '전송 중...' : '기프티콘 전송'}
-                      </button>
-                    )}
                     {!winner.prize_sent && (
                       <>
                         <button

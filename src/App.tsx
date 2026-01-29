@@ -22,6 +22,8 @@ import NotificationsPage from './pages/NotificationsPage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsAgreementPage from './pages/TermsAgreementPage'
+import UnregisteredSpotPage from './pages/UnregisteredSpotPage'
+import InstallPage from './pages/InstallPage'
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { loggedIn, profile, loading } = useAuth()
@@ -95,6 +97,7 @@ function AppLayout() {
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/events/new" element={<EventCreatePage />} />
           <Route path="/events/:eventId" element={<EventDetailPage />} />
+          <Route path="/spots/unregistered" element={<UnregisteredSpotPage />} />
           <Route path="/spots/:id" element={<SpotPostsPage />} />
           <Route path="/posts/new" element={<CreatePostPage />} />
           <Route path="/spots/:spotId/posts/new" element={<CreatePostPage />} />
@@ -105,6 +108,7 @@ function AppLayout() {
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/install" element={<InstallPage />} />
         </Routes>
       </main>
       {!hideNav && <BottomNav />}
