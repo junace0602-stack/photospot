@@ -202,24 +202,22 @@ export default function TermsAgreementPage() {
     if (!user || !allAgreed) return
 
     setSaving(true)
+
+    // upsert로 프로필이 없으면 생성, 있으면 업데이트
     const { error } = await supabase
       .from('profiles')
-      .update({ terms_agreed_at: new Date().toISOString() })
-      .eq('id', user.id)
-
-    if (error) {
-      // 프로필이 없으면 생성
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .upsert({
+      .upsert(
+        {
           id: user.id,
           terms_agreed_at: new Date().toISOString(),
-        })
-      if (insertError) {
-        toast.error('저장에 실패했습니다: ' + insertError.message)
-        setSaving(false)
-        return
-      }
+        },
+        { onConflict: 'id' }
+      )
+
+    if (error) {
+      toast.error('저장에 실패했습니다: ' + error.message)
+      setSaving(false)
+      return
     }
 
     await refreshProfile()
