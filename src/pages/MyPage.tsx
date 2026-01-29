@@ -107,12 +107,32 @@ function LoggedInView() {
   })
   const [statsLoading, setStatsLoading] = useState(true)
 
-  // 통계 로드
+  // 통계 로드 (캐싱 적용)
   useEffect(() => {
     if (!user) return
 
+    const CACHE_KEY = `mypage-stats-${user.id}`
+    const CACHE_TTL = 60 * 1000 // 1분 캐시
+
     const loadStats = async () => {
-      setStatsLoading(true)
+      // 캐시 확인 (stale-while-revalidate 패턴)
+      const cached = sessionStorage.getItem(CACHE_KEY)
+      const cachedTime = sessionStorage.getItem(`${CACHE_KEY}-time`)
+
+      if (cached && cachedTime) {
+        const age = Date.now() - Number(cachedTime)
+        if (age < CACHE_TTL) {
+          // 캐시 유효: 즉시 표시
+          setStats(JSON.parse(cached))
+          setStatsLoading(false)
+          return
+        }
+        // 캐시 만료: 일단 캐시 표시 후 백그라운드 갱신
+        setStats(JSON.parse(cached))
+        setStatsLoading(false)
+      } else {
+        setStatsLoading(true)
+      }
 
       // 병렬로 모든 통계 조회
       const [
@@ -189,14 +209,20 @@ function LoggedInView() {
       // 스크랩 수
       const scrapsCount = scrapsRes.count ?? 0
 
-      setStats({
+      const newStats = {
         postsCount,
         commentsCount,
         receivedLikes,
         favoritesCount,
         likedPostsCount,
         scrapsCount,
-      })
+      }
+
+      // 캐시 저장
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(newStats))
+      sessionStorage.setItem(`${CACHE_KEY}-time`, String(Date.now()))
+
+      setStats(newStats)
       setStatsLoading(false)
     }
 

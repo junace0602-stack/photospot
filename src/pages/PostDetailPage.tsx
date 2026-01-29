@@ -215,28 +215,19 @@ export default function PostDetailPage() {
     load()
   }, [postId, spotId, user])
 
-  // 조회수 증가
+  // 조회수 증가 (낙관적 UI + 단일 호출)
   useEffect(() => {
-    if (!postId) return
+    if (!postId || !post) return
 
-    const incrementViewCount = async () => {
-      const { data } = await supabase
-        .from('posts')
-        .select('view_count')
-        .eq('id', postId)
-        .single()
+    // 낙관적 UI: 즉시 +1 표시
+    setViewCount((post.view_count ?? 0) + 1)
 
-      const currentCount = data?.view_count ?? 0
-      await supabase
-        .from('posts')
-        .update({ view_count: currentCount + 1 })
-        .eq('id', postId)
-
-      setViewCount(currentCount + 1)
-    }
-
-    incrementViewCount()
-  }, [postId])
+    // 백그라운드에서 DB 업데이트 (단일 호출)
+    supabase
+      .from('posts')
+      .update({ view_count: (post.view_count ?? 0) + 1 })
+      .eq('id', postId)
+  }, [postId, post?.view_count])
 
   const toggleLike = useCallback(async () => {
     if (!loggedIn || !user || !postId || likeLoading) return
@@ -244,9 +235,11 @@ export default function PostDetailPage() {
 
     // 낙관적 UI
     const wasLiked = liked
+    const newCount = likeCount + (wasLiked ? -1 : 1)
     setLiked(!wasLiked)
-    setLikeCount((c) => c + (wasLiked ? -1 : 1))
+    setLikeCount(newCount)
 
+    // 1. 좋아요 토글 (DELETE 또는 INSERT)
     if (wasLiked) {
       await supabase
         .from('likes')
@@ -259,27 +252,19 @@ export default function PostDetailPage() {
         .insert({ post_id: postId, user_id: user.id })
     }
 
-    // 실제 카운트로 동기화
-    const { count } = await supabase
-      .from('likes')
-      .select('*', { count: 'exact', head: true })
-      .eq('post_id', postId)
-
-    const actual = count ?? 0
-    setLikeCount(actual)
-    setLikeLoading(false)
-
-    // posts 캐시 카운트 갱신
+    // 2. posts 캐시 카운트 갱신 (낙관적 카운트 사용, SELECT 제거)
     await supabase
       .from('posts')
-      .update({ likes_count: actual })
+      .update({ likes_count: Math.max(0, newCount) })
       .eq('id', postId)
+
+    setLikeLoading(false)
 
     // 인기글 알림
     if (post && spotId && !wasLiked) {
-      notifyPopular(post.user_id, post.title, `/spots/${spotId}/posts/${postId}`, actual)
+      notifyPopular(post.user_id, post.title, `/spots/${spotId}/posts/${postId}`, newCount)
     }
-  }, [liked, likeLoading, loggedIn, postId, spotId, post, user])
+  }, [liked, likeCount, likeLoading, loggedIn, postId, spotId, post, user])
 
   const submitComment = useCallback(async () => {
     if (!commentText.trim() || !user || !postId || commentSending) return

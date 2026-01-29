@@ -268,59 +268,49 @@ export default function CommunityPostDetailPage() {
     localStorage.setItem('recentPosts', JSON.stringify(updated))
   }, [postId])
 
-  // 조회수 증가
+  // 조회수 증가 (낙관적 UI + 단일 호출)
   useEffect(() => {
-    if (!postId) return
+    if (!postId || !post) return
 
-    const incrementViewCount = async () => {
-      const { data } = await supabase
-        .from('community_posts')
-        .select('view_count')
-        .eq('id', postId)
-        .single()
+    const currentCount = post.view_count ?? 0
 
-      const currentCount = data?.view_count ?? 0
-      await supabase
-        .from('community_posts')
-        .update({ view_count: currentCount + 1 })
-        .eq('id', postId)
+    // 낙관적 UI: 즉시 +1 표시
+    setPost((prev) => prev ? { ...prev, view_count: currentCount + 1 } : prev)
 
-      setPost((prev) => prev ? { ...prev, view_count: currentCount + 1 } : prev)
-    }
-
-    incrementViewCount()
-  }, [postId])
+    // 백그라운드에서 DB 업데이트 (단일 호출)
+    supabase
+      .from('community_posts')
+      .update({ view_count: currentCount + 1 })
+      .eq('id', postId)
+  }, [postId, post?.id])
 
   const toggleLike = useCallback(async () => {
     if (!loggedIn || !user || !postId || likeLoading) return
     setLikeLoading(true)
 
+    // 낙관적 UI
     const wasLiked = liked
+    const newCount = likeCount + (wasLiked ? -1 : 1)
     setLiked(!wasLiked)
-    setLikeCount((c) => c + (wasLiked ? -1 : 1))
+    setLikeCount(newCount)
 
+    // 1. 좋아요 토글 (DELETE 또는 INSERT)
     if (wasLiked) {
       await supabase.from('community_likes').delete().eq('community_post_id', postId).eq('user_id', user.id)
     } else {
       await supabase.from('community_likes').insert({ community_post_id: postId, user_id: user.id })
     }
 
-    const { count } = await supabase
-      .from('community_likes')
-      .select('*', { count: 'exact', head: true })
-      .eq('community_post_id', postId)
+    // 2. posts 캐시 카운트 갱신 (낙관적 카운트 사용, SELECT 제거)
+    await supabase.from('community_posts').update({ likes_count: Math.max(0, newCount) }).eq('id', postId)
 
-    const actual = count ?? 0
-    setLikeCount(actual)
     setLikeLoading(false)
-
-    await supabase.from('community_posts').update({ likes_count: actual }).eq('id', postId)
 
     // 인기글 알림
     if (post && !wasLiked) {
-      notifyPopular(post.user_id, post.title, `/community/${postId}`, actual)
+      notifyPopular(post.user_id, post.title, `/community/${postId}`, newCount)
     }
-  }, [liked, likeLoading, loggedIn, postId, post, user])
+  }, [liked, likeCount, likeLoading, loggedIn, postId, post, user])
 
   const toggleScrap = useCallback(async () => {
     if (!loggedIn || !user || !postId || scrapLoading) return
