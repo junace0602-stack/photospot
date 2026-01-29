@@ -115,6 +115,30 @@ function getEventStatus(event: Event): { label: string; color: string } {
   return { label: '마감', color: 'bg-blue-50 text-blue-600' }
 }
 
+/* ── 이미지 화질 최적화 URL 생성 ───────────────────────────────────── */
+
+/**
+ * Supabase Storage 이미지 URL에 quality 파라미터 추가
+ * - 그리드용 저화질 이미지 로드 (quality: 50)
+ */
+function getLowQualityImageUrl(url: string, quality: number = 50): string {
+  if (!url) return url
+
+  // Supabase Storage URL인지 확인
+  if (!url.includes('/storage/v1/object/public/')) {
+    return url
+  }
+
+  // object → render/image 로 변경하고 quality 파라미터 추가
+  const transformedUrl = url.replace(
+    '/storage/v1/object/public/',
+    '/storage/v1/render/image/public/'
+  )
+
+  const separator = transformedUrl.includes('?') ? '&' : '?'
+  return `${transformedUrl}${separator}quality=${quality}`
+}
+
 /* ── Lazy Image ───────────────────────────────────── */
 
 function LazyImage({
@@ -151,6 +175,9 @@ function LazyImage({
 const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (index: number) => void }) {
   if (urls.length === 0) return null
 
+  // 그리드용 저화질 URL (quality: 50)
+  const lowQualityUrls = useMemo(() => urls.map(u => getLowQualityImageUrl(u, 50)), [urls])
+
   const click = (i: number) => (e: React.MouseEvent) => {
     e.stopPropagation()
     onPhotoClick?.(i)
@@ -159,7 +186,7 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
   if (urls.length === 1) {
     return (
       <div className="rounded-xl overflow-hidden cursor-pointer" onClick={click(0)}>
-        <LazyImage src={urls[0]} className="w-full max-h-80 object-cover" />
+        <LazyImage src={lowQualityUrls[0]} className="w-full max-h-80 object-cover" />
       </div>
     )
   }
@@ -167,7 +194,7 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
   if (urls.length === 2) {
     return (
       <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
-        {urls.map((u, i) => (
+        {lowQualityUrls.map((u, i) => (
           <LazyImage key={i} src={u} className="w-full h-48 object-cover cursor-pointer" onClick={click(i)} />
         ))}
       </div>
@@ -177,15 +204,15 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
   if (urls.length === 3) {
     return (
       <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden" style={{ height: 240 }}>
-        <LazyImage src={urls[0]} className="w-full h-full object-cover cursor-pointer" style={{ gridRow: '1/3' }} onClick={click(0)} />
-        <LazyImage src={urls[1]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(1)} />
-        <LazyImage src={urls[2]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(2)} />
+        <LazyImage src={lowQualityUrls[0]} className="w-full h-full object-cover cursor-pointer" style={{ gridRow: '1/3' }} onClick={click(0)} />
+        <LazyImage src={lowQualityUrls[1]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(1)} />
+        <LazyImage src={lowQualityUrls[2]} className="w-full object-cover cursor-pointer" style={{ height: 119 }} onClick={click(2)} />
       </div>
     )
   }
 
   // 4+
-  const show = urls.slice(0, 4)
+  const show = lowQualityUrls.slice(0, 4)
   const extra = urls.length - 4
   return (
     <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
@@ -760,25 +787,14 @@ export default function ListPage() {
             ))}
           </div>
         ) : (
-          /* ── 기본 목록형 ── */
+          /* ── 기본 목록형 (디시인사이드 스타일) ── */
           <div className="bg-white">
             {items.map((item) => {
-              const thumb = item.thumbnail_url || item.imageUrls[0]
+              const hasImage = item.thumbnail_url || item.imageUrls.length > 0
 
               return (
                 <Link key={item.id} to={`/community/${item.id}`} className="block" onClick={saveScrollBeforeNav}>
-                  <div className="flex items-start gap-3 px-4 py-2.5 border-b border-gray-100">
-                    {/* 썸네일 */}
-                    {thumb ? (
-                      <LazyImage
-                        src={thumb}
-                        className="w-[48px] h-[48px] rounded-lg object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-[48px] h-[48px] rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                        <Camera className="w-5 h-5 text-gray-300" />
-                      </div>
-                    )}
+                  <div className="flex items-start gap-2 px-4 py-2.5 border-b border-gray-100">
                     {/* 콘텐츠 영역: 좌우 분산 */}
                     <div className="flex-1 min-w-0 flex justify-between gap-2">
                       {/* 왼쪽: 제목+뱃지, 닉네임 */}
@@ -794,6 +810,10 @@ export default function ListPage() {
                             <span className="ml-1 text-blue-500 font-medium">
                               [{item.comment_count}]
                             </span>
+                          )}
+                          {/* 사진 있으면 아이콘 표시 */}
+                          {hasImage && (
+                            <Camera className="inline-block w-3.5 h-3.5 ml-1 text-gray-400" />
                           )}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400">
