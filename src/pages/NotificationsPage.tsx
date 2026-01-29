@@ -156,30 +156,15 @@ export default function NotificationsPage() {
       })
   }, [user])
 
-  // 설정 저장
+  // 설정 저장 (upsert로 1회 호출)
   const saveSetting = useCallback(async (field: keyof NotificationSettings, value: boolean) => {
     if (!user) return
 
-    const { data: existing } = await supabase
-      .from('user_settings')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (existing) {
-      await supabase
-        .from('user_settings')
-        .update({ [field]: value })
-        .eq('user_id', user.id)
-    } else {
-      await supabase.from('user_settings').insert({
-        user_id: user.id,
-        notify_comment: field === 'notify_comment' ? value : settings.notify_comment,
-        notify_reply: field === 'notify_reply' ? value : settings.notify_reply,
-        notify_like: field === 'notify_like' ? value : settings.notify_like,
-      })
-    }
-  }, [user, settings])
+    await supabase.from('user_settings').upsert({
+      user_id: user.id,
+      [field]: value,
+    }, { onConflict: 'user_id' })
+  }, [user])
 
   const handleToggle = (field: keyof NotificationSettings) => {
     const next = !settings[field]

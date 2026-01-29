@@ -10,7 +10,6 @@ import {
   X,
   Crosshair,
   Loader2,
-  Flame,
   Camera,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -1477,6 +1476,8 @@ export default function MapPage() {
                 <img
                   src={bannerPlace.thumbnail}
                   alt={bannerPlace.name}
+                  loading="lazy"
+                  decoding="async"
                   className="w-14 h-14 rounded-xl object-cover shrink-0"
                 />
               ) : (
@@ -1524,12 +1525,6 @@ export default function MapPage() {
             {/* 인기글 섹션 (등록된 장소만) */}
             {bannerPlace.type === 'registered' && (
               <div className="border-t border-gray-100">
-                {/* 섹션 헤더 */}
-                <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
-                  <Flame className="w-4 h-4 text-orange-500" />
-                  <span className="text-sm font-semibold text-gray-700">인기 글</span>
-                </div>
-
                 {/* 인기글 목록 */}
                 {bannerPostsLoading ? (
                   <div className="flex items-center justify-center py-4">
@@ -1553,6 +1548,8 @@ export default function MapPage() {
                           <img
                             src={post.thumbnail_url}
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                             className="w-10 h-10 rounded-lg object-cover shrink-0"
                           />
                         ) : (
