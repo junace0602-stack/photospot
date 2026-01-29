@@ -107,8 +107,15 @@ export default function CreatePostPage() {
   const [submitting, setSubmitting] = useState(false)
   const [isAnonymous, setIsAnonymous] = useState(false)
 
+  // URL 쿼리 파라미터
+  const searchParams = new URLSearchParams(location.search)
+  const querySpotId = searchParams.get('spotId')
+  const queryLat = searchParams.get('lat')
+  const queryLng = searchParams.get('lng')
+  const queryName = searchParams.get('name')
+
   // 챌린지 관련
-  const challengeIdParam = new URLSearchParams(location.search).get('challengeId')
+  const challengeIdParam = searchParams.get('challengeId')
   const [challenges, setChallenges] = useState<{ id: string; title: string }[]>([])
   const [selectedChallengeId, setSelectedChallengeId] = useState<string>(challengeIdParam ?? '')
 
@@ -117,14 +124,15 @@ export default function CreatePostPage() {
   const isEditMode = !!editPost
 
   // 게시판 타입
-  const [boardType, setBoardType] = useState<BoardType>(paramSpotId ? '출사지' : challengeIdParam ? '사진' : '출사지')
+  const initialSpotId = paramSpotId ?? querySpotId ?? ''
+  const [boardType, setBoardType] = useState<BoardType>(initialSpotId || queryLat ? '출사지' : challengeIdParam ? '사진' : '출사지')
   const isSpot = boardType === '출사지'
 
   // 국내/해외 구분
   const [isDomestic, setIsDomestic] = useState(true)
 
   // 장소 선택 (출사지 전용)
-  const [selectedSpotId, setSelectedSpotId] = useState(paramSpotId ?? '')
+  const [selectedSpotId, setSelectedSpotId] = useState(initialSpotId)
   const [spotName, setSpotName] = useState('장소')
 
   // 장소 검색
@@ -141,20 +149,60 @@ export default function CreatePostPage() {
   const [savingPlace, setSavingPlace] = useState(false)
   const newPlaceMapRef = useRef<HTMLDivElement>(null)
 
-  const spotId = paramSpotId ?? selectedSpotId
+  const spotId = initialSpotId || selectedSpotId
 
-  // paramSpotId가 있으면 이름만 조회
+  // URL에서 spotId가 있으면 이름 조회
   useEffect(() => {
-    if (!paramSpotId) return
+    if (!initialSpotId) return
     supabase
       .from('places')
       .select('name')
-      .eq('id', paramSpotId)
+      .eq('id', initialSpotId)
       .single()
       .then(({ data }) => {
         if (data) setSpotName(data.name)
       })
-  }, [paramSpotId])
+  }, [initialSpotId])
+
+  // URL에서 미등록 장소 정보가 있으면 자동 등록
+  useEffect(() => {
+    if (initialSpotId || !queryLat || !queryLng || !queryName) return
+
+    const registerNewPlace = async () => {
+      // 동일 이름의 장소가 이미 등록되어 있는지 확인
+      const { data: existing } = await supabase
+        .from('places')
+        .select('id, name')
+        .eq('name', queryName)
+        .maybeSingle()
+
+      if (existing) {
+        setSelectedSpotId(existing.id)
+        setSpotName(existing.name)
+        return
+      }
+
+      // 새 장소 등록
+      const { data, error } = await supabase
+        .from('places')
+        .insert({
+          name: queryName,
+          lat: parseFloat(queryLat),
+          lng: parseFloat(queryLng),
+          is_domestic: true,
+        })
+        .select('id, name')
+        .single()
+
+      if (!error && data) {
+        setSelectedSpotId(data.id)
+        setSpotName(data.name)
+        toast.success(`"${data.name}" 장소가 새로 등록되었습니다.`)
+      }
+    }
+
+    registerNewPlace()
+  }, [initialSpotId, queryLat, queryLng, queryName])
 
   // 진행 중인 챌린지 목록 fetch
   useEffect(() => {
@@ -172,7 +220,7 @@ export default function CreatePostPage() {
 
   // 장소 검색 (디바운스 300ms): DB + Google Autocomplete 병렬
   useEffect(() => {
-    if (paramSpotId) return
+    if (initialSpotId || selectedSpotId) return
     const q = placeQuery.trim()
     if (!q) {
       setDbResults([])
@@ -197,7 +245,7 @@ export default function CreatePostPage() {
       })
     }, 300)
     return () => clearTimeout(timer)
-  }, [placeQuery, paramSpotId, isDomestic])
+  }, [placeQuery, initialSpotId, selectedSpotId, isDomestic])
 
   // 새 장소 등록 모달 열릴 때 지도 초기화
   useEffect(() => {
@@ -720,7 +768,7 @@ export default function CreatePostPage() {
         )}
 
         {/* 국내/해외 선택 (출사지 전용) */}
-        {isSpot && !paramSpotId && !isEditMode && (
+        {isSpot && !initialSpotId && !selectedSpotId && !isEditMode && (
           <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
             <span className="text-sm text-gray-500 mr-1">지역</span>
             {(['국내', '해외'] as const).map((label) => {
@@ -754,21 +802,20 @@ export default function CreatePostPage() {
         {/* 장소 선택 (출사지 전용) */}
         {isSpot && (
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-            {paramSpotId ? (
-              <p className="text-sm text-gray-500">
-                장소: <span className="font-semibold text-gray-800">{spotName}</span>
-              </p>
-            ) : selectedSpotId ? (
+            {(initialSpotId || selectedSpotId) ? (
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
                 <span className="text-sm font-semibold text-gray-800">{spotName}</span>
-                <button
-                  type="button"
-                  onClick={handleClearPlace}
-                  className="ml-auto p-0.5 text-gray-400"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                {/* URL에서 온 장소가 아닌 경우에만 X 버튼 표시 */}
+                {!initialSpotId && selectedSpotId && (
+                  <button
+                    type="button"
+                    onClick={handleClearPlace}
+                    className="ml-auto p-0.5 text-gray-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             ) : (
               <div className="relative">

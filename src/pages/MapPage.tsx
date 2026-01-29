@@ -11,6 +11,7 @@ import {
   Crosshair,
   Loader2,
   Camera,
+  Pencil,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { share } from '../utils/share'
@@ -847,6 +848,23 @@ export default function MapPage() {
     }
   }, [bannerPlace, navigate])
 
+  // 배너에서 글쓰기 페이지로 이동
+  const handleBannerWrite = useCallback(() => {
+    if (!bannerPlace) return
+    if (bannerPlace.type === 'registered') {
+      // 등록된 출사지 → spotId 전달
+      navigate(`/posts/new?spotId=${bannerPlace.id}`)
+    } else {
+      // 미등록 장소 → lat, lng, name 전달
+      const params = new URLSearchParams({
+        lat: String(bannerPlace.lat),
+        lng: String(bannerPlace.lng),
+        name: bannerPlace.name,
+      })
+      navigate(`/posts/new?${params}`)
+    }
+  }, [bannerPlace, navigate])
+
   // 배너 닫기
   const closeBanner = useCallback(() => {
     setBannerPlace(null)
@@ -1571,26 +1589,46 @@ export default function MapPage() {
                   </div>
                 )}
 
-                {/* 전체보기 버튼 */}
-                <button
-                  type="button"
-                  onClick={handleBannerClick}
-                  className="w-full py-2.5 text-sm font-medium text-blue-600 bg-gray-50 hover:bg-gray-100 transition-colors"
-                >
-                  전체보기
-                </button>
+                {/* 하단 버튼들 */}
+                <div className="flex border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={handleBannerClick}
+                    className="flex-1 py-2.5 text-sm font-medium text-blue-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    전체보기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBannerWrite}
+                    className="flex-1 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    글쓰기
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* 미등록 장소: 전체보기 버튼만 */}
+            {/* 미등록 장소: 하단 버튼들 */}
             {bannerPlace.type === 'unregistered' && (
-              <button
-                type="button"
-                onClick={handleBannerClick}
-                className="w-full py-2.5 text-sm font-medium text-blue-600 border-t border-gray-100 hover:bg-gray-50 transition-colors"
-              >
-                상세보기
-              </button>
+              <div className="flex border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleBannerClick}
+                  className="flex-1 py-2.5 text-sm font-medium text-blue-600 hover:bg-gray-50 transition-colors"
+                >
+                  상세보기
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBannerWrite}
+                  className="flex-1 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  글쓰기
+                </button>
+              </div>
             )}
           </div>
         </div>
