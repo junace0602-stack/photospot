@@ -115,6 +115,33 @@ function getEventStatus(event: Event): { label: string; color: string } {
   return { label: '마감', color: 'bg-blue-50 text-blue-600' }
 }
 
+/* ── 이미지 리사이즈 URL 생성 ───────────────────────────────────── */
+
+/**
+ * Supabase Storage 이미지 URL에 transform 파라미터 추가
+ * - 그리드용 중간 크기 이미지 로드 (width: 400)
+ * - 원본 URL 형식: https://xxx.supabase.co/storage/v1/object/public/images/xxx.webp
+ * - 변환 URL 형식: https://xxx.supabase.co/storage/v1/render/image/public/images/xxx.webp?width=400
+ */
+function getResizedImageUrl(url: string, width: number = 400): string {
+  if (!url) return url
+
+  // Supabase Storage URL인지 확인
+  if (!url.includes('/storage/v1/object/public/')) {
+    return url
+  }
+
+  // object → render/image 로 변경하고 width 파라미터 추가
+  const transformedUrl = url.replace(
+    '/storage/v1/object/public/',
+    '/storage/v1/render/image/public/'
+  )
+
+  // 이미 쿼리 파라미터가 있는지 확인
+  const separator = transformedUrl.includes('?') ? '&' : '?'
+  return `${transformedUrl}${separator}width=${width}`
+}
+
 /* ── Lazy Image with Skeleton ───────────────────────────────────── */
 
 const LazyImage = memo(function LazyImage({
@@ -173,6 +200,9 @@ const LazyImage = memo(function LazyImage({
 const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (index: number) => void }) {
   if (urls.length === 0) return null
 
+  // 그리드용 리사이즈 URL (width: 400)
+  const resizedUrls = useMemo(() => urls.map(u => getResizedImageUrl(u, 400)), [urls])
+
   const click = (i: number) => (e: React.MouseEvent) => {
     e.stopPropagation()
     onPhotoClick?.(i)
@@ -181,7 +211,7 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
   if (urls.length === 1) {
     return (
       <LazyImage
-        src={urls[0]}
+        src={resizedUrls[0]}
         className="w-full max-h-80 object-cover"
         wrapperClassName="rounded-xl cursor-pointer"
         onClick={click(0)}
@@ -192,7 +222,7 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
   if (urls.length === 2) {
     return (
       <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
-        {urls.map((u, i) => (
+        {resizedUrls.map((u, i) => (
           <LazyImage
             key={i}
             src={u}
@@ -209,21 +239,21 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
     return (
       <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden" style={{ height: 240 }}>
         <LazyImage
-          src={urls[0]}
+          src={resizedUrls[0]}
           className="w-full h-full object-cover"
           wrapperClassName="cursor-pointer"
           style={{ gridRow: '1/3' }}
           onClick={click(0)}
         />
         <LazyImage
-          src={urls[1]}
+          src={resizedUrls[1]}
           className="w-full h-full object-cover"
           wrapperClassName="cursor-pointer"
           style={{ height: 119 }}
           onClick={click(1)}
         />
         <LazyImage
-          src={urls[2]}
+          src={resizedUrls[2]}
           className="w-full h-full object-cover"
           wrapperClassName="cursor-pointer"
           style={{ height: 119 }}
@@ -234,7 +264,7 @@ const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string
   }
 
   // 4+
-  const show = urls.slice(0, 4)
+  const show = resizedUrls.slice(0, 4)
   const extra = urls.length - 4
   return (
     <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden">
