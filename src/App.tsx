@@ -1,29 +1,43 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import BottomNav from './components/BottomNav'
+
+// 자주 사용되는 핵심 페이지 (즉시 로드)
 import MapPage from './pages/MapPage'
 import ListPage from './pages/ListPage'
 import MyPage from './pages/MyPage'
-import LoginPage from './pages/LoginPage'
-import NicknameSetupPage from './pages/NicknameSetupPage'
-import AdminPage from './pages/AdminPage'
-import SpotPostsPage from './pages/SpotPostsPage'
-import PostDetailPage from './pages/PostDetailPage'
-import CreatePostPage from './pages/CreatePostPage'
-import MyActivityPage from './pages/MyActivityPage'
-import EventDetailPage from './pages/EventDetailPage'
-import EventCreatePage from './pages/EventCreatePage'
-import CommunityPostDetailPage from './pages/CommunityPostDetailPage'
-import FeedbackPage from './pages/FeedbackPage'
-import BlockedUsersPage from './pages/BlockedUsersPage'
-import NotificationsPage from './pages/NotificationsPage'
-import TermsPage from './pages/TermsPage'
-import PrivacyPage from './pages/PrivacyPage'
-import TermsAgreementPage from './pages/TermsAgreementPage'
-import UnregisteredSpotPage from './pages/UnregisteredSpotPage'
-import InstallPage from './pages/InstallPage'
+
+// 로딩 폴백 컴포넌트
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
+
+// 나머지 페이지는 lazy loading
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const NicknameSetupPage = lazy(() => import('./pages/NicknameSetupPage'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
+const SpotPostsPage = lazy(() => import('./pages/SpotPostsPage'))
+const PostDetailPage = lazy(() => import('./pages/PostDetailPage'))
+const CreatePostPage = lazy(() => import('./pages/CreatePostPage'))
+const MyActivityPage = lazy(() => import('./pages/MyActivityPage'))
+const EventDetailPage = lazy(() => import('./pages/EventDetailPage'))
+const EventCreatePage = lazy(() => import('./pages/EventCreatePage'))
+const CommunityPostDetailPage = lazy(() => import('./pages/CommunityPostDetailPage'))
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
+const BlockedUsersPage = lazy(() => import('./pages/BlockedUsersPage'))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
+const TermsPage = lazy(() => import('./pages/TermsPage'))
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
+const TermsAgreementPage = lazy(() => import('./pages/TermsAgreementPage'))
+const UnregisteredSpotPage = lazy(() => import('./pages/UnregisteredSpotPage'))
+const InstallPage = lazy(() => import('./pages/InstallPage'))
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { loggedIn, profile, loading } = useAuth()
@@ -86,30 +100,32 @@ function AppLayout() {
   return (
     <div className="flex flex-col h-screen">
       <main className="flex-1 min-h-0">
-        <Routes>
-          <Route path="/" element={<MapPage />} />
-          <Route path="/list" element={<ListPage />} />
-          <Route path="/mypage" element={<MyPage />} />
-          <Route path="/mypage/:type" element={<MyActivityPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/terms-agreement" element={<TermsAgreementPage />} />
-          <Route path="/nickname-setup" element={<NicknameSetupPage />} />
-          <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
-          <Route path="/events/new" element={<EventCreatePage />} />
-          <Route path="/events/:eventId" element={<EventDetailPage />} />
-          <Route path="/spots/unregistered" element={<UnregisteredSpotPage />} />
-          <Route path="/spots/:id" element={<SpotPostsPage />} />
-          <Route path="/posts/new" element={<CreatePostPage />} />
-          <Route path="/spots/:spotId/posts/new" element={<CreatePostPage />} />
-          <Route path="/spots/:spotId/posts/:postId" element={<PostDetailPage />} />
-          <Route path="/community/:postId" element={<CommunityPostDetailPage />} />
-          <Route path="/feedback" element={<FeedbackPage />} />
-          <Route path="/mypage/blocked" element={<BlockedUsersPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/install" element={<InstallPage />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<MapPage />} />
+            <Route path="/list" element={<ListPage />} />
+            <Route path="/mypage" element={<MyPage />} />
+            <Route path="/mypage/:type" element={<MyActivityPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/terms-agreement" element={<TermsAgreementPage />} />
+            <Route path="/nickname-setup" element={<NicknameSetupPage />} />
+            <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+            <Route path="/events/new" element={<EventCreatePage />} />
+            <Route path="/events/:eventId" element={<EventDetailPage />} />
+            <Route path="/spots/unregistered" element={<UnregisteredSpotPage />} />
+            <Route path="/spots/:id" element={<SpotPostsPage />} />
+            <Route path="/posts/new" element={<CreatePostPage />} />
+            <Route path="/spots/:spotId/posts/new" element={<CreatePostPage />} />
+            <Route path="/spots/:spotId/posts/:postId" element={<PostDetailPage />} />
+            <Route path="/community/:postId" element={<CommunityPostDetailPage />} />
+            <Route path="/feedback" element={<FeedbackPage />} />
+            <Route path="/mypage/blocked" element={<BlockedUsersPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/install" element={<InstallPage />} />
+          </Routes>
+        </Suspense>
       </main>
       {!hideNav && <BottomNav />}
     </div>

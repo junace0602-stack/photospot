@@ -3,6 +3,8 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
+  useCallback,
   type ReactNode,
 } from 'react'
 import type { User } from '@supabase/supabase-js'
@@ -52,75 +54,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => sessionStorage.getItem('admin-mode-on') === 'true',
   )
 
+  // 중복 호출 방지를 위한 ref
+  const initializedRef = useRef(false)
+  const lastUserIdRef = useRef<string | null>(null)
+
   const realRole: Role = profile?.role ?? 'user'
   const realIsAdmin = realRole === 'admin' || realRole === 'superadmin'
   const isAdminMode = realIsAdmin && adminModeOn
 
-  const toggleAdminMode = () => {
+  const toggleAdminMode = useCallback(() => {
     setAdminModeOn((prev) => {
       const next = !prev
       if (next) sessionStorage.setItem('admin-mode-on', 'true')
       else sessionStorage.removeItem('admin-mode-on')
       return next
     })
-  }
+  }, [])
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
       .select('id, nickname, role, terms_agreed_at')
       .eq('id', userId)
       .single()
     setProfile(data as Profile | null)
-  }
+  }, [])
 
-  // 마지막 활동 시간 업데이트
-  const updateLastActive = async (userId: string) => {
+  // 마지막 활동 시간 업데이트 (중복 호출 방지)
+  const updateLastActive = useCallback(async (userId: string) => {
     await supabase
       .from('profiles')
       .update({ last_active_at: new Date().toISOString() })
       .eq('id', userId)
-  }
+  }, [])
 
   useEffect(() => {
+    // getSession으로 초기 세션 확인
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null
       setUser(u)
+
       if (u) {
-        fetchProfile(u.id).finally(() => setLoading(false))
-        updateLastActive(u.id)
+        // 동일 사용자 중복 호출 방지
+        if (lastUserIdRef.current !== u.id) {
+          lastUserIdRef.current = u.id
+          fetchProfile(u.id).finally(() => setLoading(false))
+          updateLastActive(u.id)
+        } else {
+          setLoading(false)
+        }
       } else {
         setLoading(false)
       }
+      initializedRef.current = true
     })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      // 초기화 전이면 무시 (getSession에서 처리)
+      if (!initializedRef.current) return
+
       const u = session?.user ?? null
       setUser(u)
+
       if (u) {
-        fetchProfile(u.id).finally(() => setLoading(false))
-        updateLastActive(u.id)
+        // 동일 사용자 중복 호출 방지
+        if (lastUserIdRef.current !== u.id) {
+          lastUserIdRef.current = u.id
+          fetchProfile(u.id).finally(() => setLoading(false))
+          updateLastActive(u.id)
+        }
       } else {
+        lastUserIdRef.current = null
         setProfile(null)
         setLoading(false)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [fetchProfile, updateLastActive])
 
-  // 주기적으로 활동 시간 업데이트 (5분마다)
+  // 주기적으로 활동 시간 업데이트 (10분마다로 변경 - 불필요한 DB 호출 감소)
   useEffect(() => {
     if (!user) return
 
     const interval = setInterval(() => {
       updateLastActive(user.id)
-    }, 5 * 60 * 1000) // 5분
+    }, 10 * 60 * 1000) // 10분
 
     return () => clearInterval(interval)
-  }, [user])
+  }, [user, updateLastActive])
 
   const refreshProfile = async () => {
     if (user) await fetchProfile(user.id)

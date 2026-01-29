@@ -9,6 +9,7 @@ import {
   ChevronRight,
   X,
   Crosshair,
+  Loader2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { share } from '../utils/share'
@@ -949,6 +950,31 @@ export default function MapPage() {
 
   return (
     <div className="relative w-full h-full overflow-hidden">
+      {/* 지도 로딩 스켈레톤 */}
+      {!mapReady && (
+        <div className="absolute inset-0 z-30 bg-gray-100 flex flex-col items-center justify-center">
+          <div className="relative">
+            {/* 지도 스켈레톤 배경 */}
+            <div className="w-64 h-64 bg-gray-200 rounded-xl overflow-hidden relative">
+              {/* 격자 라인 */}
+              <div className="absolute inset-0 grid grid-cols-4 gap-px">
+                {[...Array(16)].map((_, i) => (
+                  <div key={i} className="bg-gray-100/50" />
+                ))}
+              </div>
+              {/* 가운데 로딩 인디케이터 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-gray-500 font-medium">지도 로딩 중...</p>
+          <p className="mt-1 text-xs text-gray-400">잠시만 기다려주세요</p>
+        </div>
+      )}
+
       {/* 지도 — 부모 컨테이너 꽉 채움 */}
       <div
         ref={mapRef}

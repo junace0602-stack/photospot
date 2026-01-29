@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ThumbsUp,
@@ -146,9 +146,9 @@ function LazyImage({
   )
 }
 
-/* ── 포토 그리드 ──────────────────────────────────── */
+/* ── 포토 그리드 (메모이제이션) ──────────────────────────────────── */
 
-function PhotoGrid({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (index: number) => void }) {
+const PhotoGrid = memo(function PhotoGrid({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (index: number) => void }) {
   if (urls.length === 0) return null
 
   const click = (i: number) => (e: React.MouseEvent) => {
@@ -201,11 +201,11 @@ function PhotoGrid({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (ind
       ))}
     </div>
   )
-}
+})
 
-/* ── 라이트박스 ────────────────────────────────────── */
+/* ── 라이트박스 (메모이제이션) ────────────────────────────────────── */
 
-function Lightbox({
+const Lightbox = memo(function Lightbox({
   urls,
   initialIndex,
   onClose,
@@ -277,7 +277,7 @@ function Lightbox({
       <div className="shrink-0 h-12" />
     </div>
   )
-}
+})
 
 /* ── 메인 컴포넌트 ────────────────────────────────── */
 
@@ -346,8 +346,27 @@ export default function ListPage() {
     }
   }, [])
 
-  /* ── 이벤트 로드 (한 번만) ── */
+  /* ── 이벤트 로드 (캐싱 적용) ── */
   useEffect(() => {
+    // sessionStorage 캐시 확인 (5분)
+    const cached = sessionStorage.getItem('events-cache')
+    const cachedTime = sessionStorage.getItem('events-cache-time')
+    const cacheValid = cached && cachedTime && (Date.now() - Number(cachedTime)) < 5 * 60 * 1000
+
+    if (cacheValid) {
+      try {
+        const data = JSON.parse(cached) as Event[]
+        setEvents(data)
+        const map = new Map<string, string>()
+        for (const e of data) map.set(e.id, e.title)
+        eventNameMapRef.current = map
+        setEventsLoaded(true)
+        return
+      } catch {
+        // 캐시 파싱 실패 시 새로 로드
+      }
+    }
+
     supabase
       .from('events')
       .select('*')
@@ -359,6 +378,9 @@ export default function ListPage() {
           const map = new Map<string, string>()
           for (const e of data) map.set(e.id, e.title)
           eventNameMapRef.current = map
+          // 캐시 저장
+          sessionStorage.setItem('events-cache', JSON.stringify(data))
+          sessionStorage.setItem('events-cache-time', String(Date.now()))
         }
         setEventsLoaded(true)
       })
@@ -690,7 +712,7 @@ export default function ListPage() {
             {items.map((item) => (
               <div
                 key={item.id}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer"
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer"
                 onClick={() => { saveScrollBeforeNav(); navigate(`/community/${item.id}`) }}
               >
                 {/* 프로필 헤더 */}
@@ -720,7 +742,7 @@ export default function ListPage() {
                   </div>
                 )}
                 {/* 하단 */}
-                <div className="flex items-center gap-4 px-4 py-2.5 border-t border-gray-50 dark:border-gray-700 text-xs text-gray-400">
+                <div className="flex items-center gap-4 px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
                     <Eye className="w-3.5 h-3.5" />
                     {item.view_count}
