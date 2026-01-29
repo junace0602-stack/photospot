@@ -796,12 +796,6 @@ export default function MapPage() {
       distance: dist,
     })
 
-    // 지도 이동
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.panTo({ lat: place.lat, lng: place.lng })
-      mapInstanceRef.current.setZoom(15)
-    }
-
     // 시트 접기
     setSnappedTop(87)
     setSearchQuery('')
