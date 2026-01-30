@@ -156,6 +156,9 @@ export default function App() {
       </BrowserRouter>
       <Toaster
         position="top-center"
+        containerStyle={{
+          top: 'calc(1rem + env(safe-area-inset-top, 0px))',
+        }}
         toastOptions={{
           duration: 3000,
           success: {
