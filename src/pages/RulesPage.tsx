@@ -19,7 +19,7 @@ export default function RulesPage() {
           {/* 인트로 */}
           <section className="bg-white rounded-xl p-4 shadow-sm">
             <p className="text-sm text-gray-600 leading-relaxed">
-              포토스팟은 사진 촬영을 사랑하는 분들을 위한 커뮤니티입니다.
+              출사지도는 사진 촬영을 사랑하는 분들을 위한 커뮤니티입니다.
               모두가 즐겁게 사용할 수 있도록 아래 가이드를 지켜주세요.
             </p>
           </section>
