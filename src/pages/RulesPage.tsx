@@ -49,10 +49,6 @@ export default function RulesPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-green-500 mt-0.5">+</span>
-                <span>중고 장비 거래</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">+</span>
                 <span>일반적인 대화 및 소통</span>
               </li>
             </ul>

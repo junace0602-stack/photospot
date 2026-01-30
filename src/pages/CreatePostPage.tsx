@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImageWithThumbnail, IMAGE_ACCEPT } from '../lib/imageUpload'
@@ -845,21 +845,6 @@ export default function CreatePostPage() {
         </button>
       </header>
 
-      {/* 규칙 안내 배너 */}
-      {!isEditMode && (
-        <div className="px-4 py-2 bg-amber-50 border-b border-amber-100">
-          <div className="flex items-center gap-2 text-amber-700">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <p className="text-xs">
-              광고/스팸/도배 시 제재됩니다.{' '}
-              <Link to="/rules" className="underline font-medium">
-                규칙 보기
-              </Link>
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* 질문글 경고 배너 */}
       {isQuestion && (
         <div className="px-4 py-2 bg-orange-50 border-b border-orange-100">
@@ -1115,7 +1100,24 @@ export default function CreatePostPage() {
         </div>
 
         {/* Content editor */}
-        <div className="px-4 py-4">
+        <div className="px-4 py-4 relative">
+          {/* 가이드 텍스트 (비어있을 때만 표시) */}
+          {!isEditMode && !title.trim() && blocks.every(b => b.type === 'text' && !b.text.trim()) && (
+            <div className="absolute inset-0 px-4 py-4 pointer-events-none">
+              <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-line">
+                {`📋 커뮤니티 가이드
+
+✓ 출사지 정보 공유 및 리뷰
+✓ 촬영한 사진 공유
+✓ 카메라/장비 관련 질문 및 팁
+✓ 출사 동행 모집
+
+✗ 광고/홍보, 스팸/도배
+✗ 정치, 일베/극단적 표현
+✗ 지역/인종 비하, 고인 모독`}
+              </div>
+            </div>
+          )}
           {blocks.map((block) =>
             block.type === 'photo' ? (
               <div key={block.id} className="relative mb-3">
@@ -1146,7 +1148,7 @@ export default function CreatePostPage() {
                 value={block.text}
                 onChange={(e) => updateText(block.id, e.target.value)}
                 placeholder="내용을 입력하세요"
-                className="w-full min-h-[120px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3"
+                className="w-full min-h-[120px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 bg-transparent relative z-10"
               />
             ),
           )}
