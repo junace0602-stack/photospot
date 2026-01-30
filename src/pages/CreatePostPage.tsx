@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy } from 'lucide-react'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImageWithThumbnail, IMAGE_ACCEPT } from '../lib/imageUpload'
 import { moderateText, checkDuplicatePost } from '../lib/moderation'
@@ -726,6 +726,21 @@ export default function CreatePostPage() {
           {submitting ? '저장 중...' : isUploading ? '업로드 중...' : isEditMode ? '수정' : '등록'}
         </button>
       </header>
+
+      {/* 규칙 안내 배너 */}
+      {!isEditMode && (
+        <div className="px-4 py-2 bg-amber-50 border-b border-amber-100">
+          <div className="flex items-center gap-2 text-amber-700">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <p className="text-xs">
+              광고/스팸/도배 시 제재됩니다.{' '}
+              <Link to="/rules" className="underline font-medium">
+                규칙 보기
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">

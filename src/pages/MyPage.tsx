@@ -550,6 +550,10 @@ function LoggedInView() {
           {/* 하단 약관 링크 */}
           <div className="py-6 bg-gray-100 flex justify-center">
             <div className="flex items-center gap-2 text-xs text-gray-400">
+              <button type="button" onClick={() => navigate('/rules')} className="hover:text-gray-500">
+                커뮤니티 가이드
+              </button>
+              <span>|</span>
               <button type="button" onClick={() => navigate('/terms')} className="hover:text-gray-500">
                 이용약관
               </button>

@@ -38,6 +38,7 @@ const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const TermsAgreementPage = lazy(() => import('./pages/TermsAgreementPage'))
 const UnregisteredSpotPage = lazy(() => import('./pages/UnregisteredSpotPage'))
 const InstallPage = lazy(() => import('./pages/InstallPage'))
+const RulesPage = lazy(() => import('./pages/RulesPage'))
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { loggedIn, profile, loading } = useAuth()
@@ -134,6 +135,7 @@ function AppLayout() {
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/install" element={<InstallPage />} />
+            <Route path="/rules" element={<RulesPage />} />
           </Routes>
         </Suspense>
       </main>

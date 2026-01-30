@@ -1,13 +1,13 @@
 /* ──────────────────────────────────────────────────
-   제재 시스템
-   - 1차 적발: 3일 정지
-   - 2차 적발: 7일 정지
-   - 3차 적발: 영구 정지
+   제재 시스템 (관리자 재량)
+   - 경고: 정지 없음, 기록만
+   - 1일/3일/7일/30일 정지
+   - 영구 정지
    ────────────────────────────────────────────────── */
 
 import { supabase } from './supabase'
 
-export type PenaltyType = 'warning' | '3day' | '7day' | 'permanent'
+export type PenaltyType = 'warning' | '1day' | '3day' | '7day' | '30day' | 'permanent'
 
 export interface UserPenalty {
   id: string
@@ -25,14 +25,30 @@ export interface SuspensionStatus {
   message: string | null
 }
 
+/** 제재 옵션 목록 */
+export const PENALTY_OPTIONS: { value: PenaltyType; label: string }[] = [
+  { value: 'warning', label: '경고 (정지 없음)' },
+  { value: '1day', label: '1일 정지' },
+  { value: '3day', label: '3일 정지' },
+  { value: '7day', label: '7일 정지' },
+  { value: '30day', label: '30일 정지' },
+  { value: 'permanent', label: '영구 정지' },
+]
+
 /** 정지 기간 계산 */
 function calculateExpiry(penaltyType: PenaltyType): Date | null {
   const now = new Date()
   switch (penaltyType) {
+    case 'warning':
+      return null // 경고는 정지 없음
+    case '1day':
+      return new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
     case '3day':
       return new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
     case '7day':
       return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+    case '30day':
+      return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
     case 'permanent':
       return null // 영구 정지
     default:
@@ -40,19 +56,13 @@ function calculateExpiry(penaltyType: PenaltyType): Date | null {
   }
 }
 
-/** 제재 횟수에 따른 제재 유형 결정 */
-export function getPenaltyTypeByCount(count: number): PenaltyType {
-  if (count === 0) return '3day' // 1차: 3일
-  if (count === 1) return '7day' // 2차: 7일
-  return 'permanent' // 3차 이상: 영구
-}
-
-/** 유저에게 제재 적용 */
+/** 유저에게 제재 적용 (관리자 재량) */
 export async function applyPenalty(
   userId: string,
   reason: string,
+  penaltyType: PenaltyType,
   adminId: string,
-): Promise<{ success: boolean; penaltyType: PenaltyType; error?: string }> {
+): Promise<{ success: boolean; error?: string }> {
   try {
     // 현재 제재 횟수 조회
     const { data: profile, error: profileError } = await supabase
@@ -62,11 +72,10 @@ export async function applyPenalty(
       .single()
 
     if (profileError) {
-      return { success: false, penaltyType: '3day', error: '유저 정보를 찾을 수 없습니다.' }
+      return { success: false, error: '유저 정보를 찾을 수 없습니다.' }
     }
 
     const currentCount = profile?.penalty_count ?? 0
-    const penaltyType = getPenaltyTypeByCount(currentCount)
     const expiresAt = calculateExpiry(penaltyType)
 
     // user_penalties에 기록
@@ -74,30 +83,38 @@ export async function applyPenalty(
       user_id: userId,
       reason,
       penalty_type: penaltyType,
-      expires_at: expiresAt?.toISOString() ?? null,
+      expires_at: penaltyType === 'permanent' ? '9999-12-31T23:59:59Z' : expiresAt?.toISOString() ?? null,
       created_by: adminId,
     })
 
     if (penaltyError) {
-      return { success: false, penaltyType, error: '제재 기록 실패' }
+      return { success: false, error: '제재 기록 실패' }
     }
 
-    // profiles 업데이트
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        penalty_count: currentCount + 1,
-        suspended_until: penaltyType === 'permanent' ? '9999-12-31T23:59:59Z' : expiresAt?.toISOString(),
-      })
-      .eq('id', userId)
+    // 경고가 아닌 경우에만 정지 적용
+    if (penaltyType !== 'warning') {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          penalty_count: currentCount + 1,
+          suspended_until: penaltyType === 'permanent' ? '9999-12-31T23:59:59Z' : expiresAt?.toISOString(),
+        })
+        .eq('id', userId)
 
-    if (updateError) {
-      return { success: false, penaltyType, error: '프로필 업데이트 실패' }
+      if (updateError) {
+        return { success: false, error: '프로필 업데이트 실패' }
+      }
+    } else {
+      // 경고는 횟수만 증가
+      await supabase
+        .from('profiles')
+        .update({ penalty_count: currentCount + 1 })
+        .eq('id', userId)
     }
 
-    return { success: true, penaltyType }
+    return { success: true }
   } catch {
-    return { success: false, penaltyType: '3day', error: '알 수 없는 오류' }
+    return { success: false, error: '알 수 없는 오류' }
   }
 }
 
@@ -183,10 +200,14 @@ export function penaltyTypeToKorean(type: PenaltyType): string {
   switch (type) {
     case 'warning':
       return '경고'
+    case '1day':
+      return '1일 정지'
     case '3day':
       return '3일 정지'
     case '7day':
       return '7일 정지'
+    case '30day':
+      return '30일 정지'
     case 'permanent':
       return '영구 정지'
     default:

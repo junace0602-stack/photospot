@@ -27,7 +27,7 @@ import toast from 'react-hot-toast'
 import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { applyPenalty, removePenalty, getPenaltyHistory, penaltyTypeToKorean, type UserPenalty } from '../lib/penalty'
+import { applyPenalty, removePenalty, getPenaltyHistory, penaltyTypeToKorean, PENALTY_OPTIONS, type UserPenalty, type PenaltyType } from '../lib/penalty'
 
 // ── 통계 대시보드 ──
 
@@ -504,6 +504,7 @@ function BanTab() {
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ id: string; nickname: string }[]>([])
   const [selectedUser, setSelectedUser] = useState<{ id: string; nickname: string } | null>(null)
+  const [selectedPenaltyType, setSelectedPenaltyType] = useState<PenaltyType>('warning')
   const [banReason, setBanReason] = useState('')
   const [applying, setApplying] = useState(false)
   const [historyModal, setHistoryModal] = useState<{ userId: string; nickname: string } | null>(null)
@@ -551,14 +552,15 @@ function BanTab() {
     if (!selectedUser || !banReason.trim() || !user) return
 
     setApplying(true)
-    const result = await applyPenalty(selectedUser.id, banReason.trim(), user.id)
+    const result = await applyPenalty(selectedUser.id, banReason.trim(), selectedPenaltyType, user.id)
 
     if (result.success) {
-      toast.success(`${selectedUser.nickname}님에게 ${penaltyTypeToKorean(result.penaltyType)}가 적용되었습니다.`)
+      toast.success(`${selectedUser.nickname}님에게 ${penaltyTypeToKorean(selectedPenaltyType)}가 적용되었습니다.`)
       setSelectedUser(null)
       setBanReason('')
       setQuery('')
       setSearchResults([])
+      setSelectedPenaltyType('warning')
       loadSuspendedUsers()
     } else {
       toast.error(result.error ?? '제재 적용에 실패했습니다.')
@@ -607,7 +609,7 @@ function BanTab() {
         <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
           <h3 className="text-sm font-bold text-gray-700">유저 제재</h3>
           <p className="text-xs text-gray-500">
-            1차: 3일 정지 → 2차: 7일 정지 → 3차: 영구 정지
+            제재 유형과 기간을 선택하여 적용합니다.
           </p>
 
           <div className="relative">
@@ -660,6 +662,22 @@ function BanTab() {
                 </button>
               </div>
 
+              {/* 제재 유형 선택 */}
+              <div>
+                <p className="text-xs text-gray-500 mb-2">제재 유형</p>
+                <select
+                  value={selectedPenaltyType}
+                  onChange={(e) => setSelectedPenaltyType(e.target.value as PenaltyType)}
+                  className="w-full px-3 py-2.5 bg-gray-100 rounded-lg text-sm outline-none appearance-none cursor-pointer"
+                >
+                  {PENALTY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <textarea
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
@@ -676,7 +694,7 @@ function BanTab() {
                 }`}
               >
                 <UserMinus className="w-4 h-4 inline mr-1" />
-                {applying ? '처리 중...' : '제재 적용'}
+                {applying ? '처리 중...' : `${penaltyTypeToKorean(selectedPenaltyType)} 적용`}
               </button>
             </>
           )}
