@@ -1141,7 +1141,7 @@ export default function CreatePostPage() {
 ✗ 광고/홍보, 스팸/도배
 ✗ 정치, 일베/극단적 표현
 ✗ 지역/인종 비하, 고인 모독` : '내용을 입력하세요'}
-                className="w-full min-h-[200px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 placeholder:text-gray-400"
+                className="w-full min-h-[300px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 placeholder:text-gray-400"
               />
             ),
           )}
