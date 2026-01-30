@@ -568,6 +568,28 @@ function LoggedInView() {
                   💛 카카오페이로 후원하기
                 </a>
               </div>
+
+              {/* 계좌이체 */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-xs text-gray-400 text-center mb-2">또는 계좌이체</p>
+                <div className="flex items-center justify-center gap-2 bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-gray-800">우리은행 1002161964549</p>
+                    <p className="text-xs text-gray-500 mt-0.5">예금주: 유예준</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('1002161964549')
+                      toast.success('계좌번호가 복사되었습니다')
+                    }}
+                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                    title="계좌번호 복사"
+                  >
+                    <span className="text-base">📋</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
