@@ -166,42 +166,7 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
-/* ── 4단계: 링크 제한 ────────────────────────────────── */
-
-// 허용되는 링크 패턴
-const ALLOWED_LINK_PATTERN = /open\.kakao\.com/i
-
-// URL 패턴 감지 (http, https, www, 주요 도메인)
-const URL_PATTERNS = [
-  /https?:\/\/[^\s]+/gi,
-  /www\.[^\s]+/gi,
-  /[a-zA-Z0-9-]+\.(com|co\.kr|kr|net|org|io|me|xyz|info|biz|cc|tv|app|dev|shop|store)[^\s]*/gi,
-]
-
-export function checkLinks(text: string): ModerationResult {
-  // 모든 URL 패턴 찾기
-  const allLinks: string[] = []
-  for (const pattern of URL_PATTERNS) {
-    const matches = text.match(pattern)
-    if (matches) allLinks.push(...matches)
-  }
-
-  if (allLinks.length === 0) return { blocked: false }
-
-  // 허용되지 않은 링크가 있는지 확인
-  const blockedLinks = allLinks.filter((link) => !ALLOWED_LINK_PATTERN.test(link))
-
-  if (blockedLinks.length > 0) {
-    return {
-      blocked: true,
-      message: '외부 링크는 카카오톡 오픈채팅(open.kakao.com)만 허용됩니다.',
-    }
-  }
-
-  return { blocked: false }
-}
-
-/* ── 5단계: 중복 글 감지 ─────────────────────────────── */
+/* ── 4단계: 중복 글 감지 ─────────────────────────────── */
 
 import { supabase } from './supabase'
 

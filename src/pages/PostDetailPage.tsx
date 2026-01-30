@@ -4,7 +4,8 @@ import ReportModal from '../components/ReportModal'
 import toast from 'react-hot-toast'
 import { share } from '../utils/share'
 import { supabase } from '../lib/supabase'
-import { moderateText, checkLinks, checkDuplicateComment } from '../lib/moderation'
+import { moderateText, checkDuplicateComment } from '../lib/moderation'
+import { checkSuspension } from '../lib/penalty'
 import { notifyComment, notifyPopular } from '../lib/notifications'
 import { useAuth } from '../contexts/AuthContext'
 import { useBlockedUsers } from '../hooks/useBlockedUsers'
@@ -271,17 +272,17 @@ export default function PostDetailPage() {
     setCommentSending(true)
 
     try {
+      // 정지 상태 체크
+      const suspension = await checkSuspension(user.id)
+      if (suspension.isSuspended) {
+        toast.error(suspension.message ?? '계정이 정지되었습니다.')
+        return
+      }
+
       // 텍스트 검열
       const modResult = await moderateText(commentText.trim())
       if (modResult.blocked) {
         toast.error(modResult.message ?? '부적절한 내용입니다.')
-        return
-      }
-
-      // 링크 제한 체크
-      const linkResult = checkLinks(commentText.trim())
-      if (linkResult.blocked) {
-        toast.error(linkResult.message ?? '링크 오류입니다.')
         return
       }
 

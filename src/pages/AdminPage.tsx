@@ -27,6 +27,7 @@ import toast from 'react-hot-toast'
 import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { applyPenalty, removePenalty, getPenaltyHistory, penaltyTypeToKorean, type UserPenalty } from '../lib/penalty'
 
 // ── 통계 대시보드 ──
 
@@ -191,12 +192,11 @@ interface HiddenItem {
   reportCount: number
 }
 
-interface BannedUser {
-  id: number
+interface SuspendedUser {
+  id: string
   nickname: string
-  duration: string
-  reason: string
-  bannedAt: string
+  suspended_until: string | null
+  penalty_count: number
 }
 
 interface SubAdmin {
@@ -204,11 +204,6 @@ interface SubAdmin {
   nickname: string
   addedAt: string
 }
-
-const INITIAL_BANNED: BannedUser[] = [
-  { id: 1, nickname: '스팸봇123', duration: '영구 정지', reason: '반복 광고 게시', bannedAt: '2026-01-20' },
-  { id: 2, nickname: '악플러', duration: '30일 정지', reason: '욕설/비방 반복', bannedAt: '2026-01-22' },
-]
 
 const INITIAL_SUB_ADMINS: SubAdmin[] = [
   { id: 1, nickname: '야경러버', addedAt: '2026-01-10' },
@@ -502,103 +497,285 @@ function HiddenPostsTab() {
 
 // ── Tab: 유저 제재 ──
 
-const BAN_OPTIONS = ['7일 정지', '30일 정지', '영구 정지', '제재 해제'] as const
-
 function BanTab() {
-  const [banned, setBanned] = useState(INITIAL_BANNED)
+  const { user } = useAuth()
+  const [suspendedUsers, setSuspendedUsers] = useState<SuspendedUser[]>([])
+  const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
-  const [selectedBan, setSelectedBan] = useState('')
+  const [searchResults, setSearchResults] = useState<{ id: string; nickname: string }[]>([])
+  const [selectedUser, setSelectedUser] = useState<{ id: string; nickname: string } | null>(null)
   const [banReason, setBanReason] = useState('')
+  const [applying, setApplying] = useState(false)
+  const [historyModal, setHistoryModal] = useState<{ userId: string; nickname: string } | null>(null)
+  const [penaltyHistory, setPenaltyHistory] = useState<UserPenalty[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
-  const handleBan = () => {
-    if (!query.trim() || !selectedBan || (selectedBan !== '제재 해제' && !banReason.trim())) return
-    if (selectedBan === '제재 해제') {
-      setBanned((p) => p.filter((u) => u.nickname !== query.trim()))
-    } else {
-      setBanned((p) => [
-        { id: Date.now(), nickname: query.trim(), duration: selectedBan, reason: banReason, bannedAt: new Date().toISOString().slice(0, 10) },
-        ...p,
-      ])
+  // 정지된 유저 목록 로드
+  const loadSuspendedUsers = async () => {
+    setLoading(true)
+    const now = new Date().toISOString()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, nickname, suspended_until, penalty_count')
+      .or(`suspended_until.gt.${now},suspended_until.eq.9999-12-31T23:59:59+00:00`)
+      .order('suspended_until', { ascending: false })
+
+    if (data) setSuspendedUsers(data as SuspendedUser[])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadSuspendedUsers() }, [])
+
+  // 유저 검색
+  const searchUser = async () => {
+    if (!query.trim()) {
+      setSearchResults([])
+      return
     }
-    setQuery('')
-    setSelectedBan('')
-    setBanReason('')
-    toast.success(selectedBan === '제재 해제' ? '제재가 해제되었습니다' : '제재가 적용되었습니다')
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, nickname')
+      .ilike('nickname', `%${query.trim()}%`)
+      .limit(10)
+
+    if (data) setSearchResults(data)
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(searchUser, 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  // 제재 적용
+  const handleApplyPenalty = async () => {
+    if (!selectedUser || !banReason.trim() || !user) return
+
+    setApplying(true)
+    const result = await applyPenalty(selectedUser.id, banReason.trim(), user.id)
+
+    if (result.success) {
+      toast.success(`${selectedUser.nickname}님에게 ${penaltyTypeToKorean(result.penaltyType)}가 적용되었습니다.`)
+      setSelectedUser(null)
+      setBanReason('')
+      setQuery('')
+      setSearchResults([])
+      loadSuspendedUsers()
+    } else {
+      toast.error(result.error ?? '제재 적용에 실패했습니다.')
+    }
+    setApplying(false)
+  }
+
+  // 제재 해제
+  const handleRemovePenalty = async (userId: string, nickname: string) => {
+    if (!confirm(`${nickname}님의 제재를 해제하시겠습니까?`)) return
+
+    const success = await removePenalty(userId)
+    if (success) {
+      toast.success('제재가 해제되었습니다.')
+      loadSuspendedUsers()
+    } else {
+      toast.error('제재 해제에 실패했습니다.')
+    }
+  }
+
+  // 제재 이력 보기
+  const openHistory = async (userId: string, nickname: string) => {
+    setHistoryModal({ userId, nickname })
+    setHistoryLoading(true)
+    const history = await getPenaltyHistory(userId)
+    setPenaltyHistory(history)
+    setHistoryLoading(false)
+  }
+
+  // 정지 기간 표시
+  const formatSuspension = (suspendedUntil: string | null): string => {
+    if (!suspendedUntil) return '정상'
+    const date = new Date(suspendedUntil)
+    if (date.getFullYear() === 9999) return '영구 정지'
+    return `${date.toLocaleDateString('ko-KR')}까지`
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-40 text-sm text-gray-400">불러오는 중...</div>
   }
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Search */}
-      <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
-        <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
-          <Search className="w-4 h-4 text-gray-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="닉네임 또는 ID 검색"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-sm outline-none"
-          />
+    <>
+      <div className="p-4 space-y-4">
+        {/* 유저 검색 및 제재 */}
+        <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
+          <h3 className="text-sm font-bold text-gray-700">유저 제재</h3>
+          <p className="text-xs text-gray-500">
+            1차: 3일 정지 → 2차: 7일 정지 → 3차: 영구 정지
+          </p>
+
+          <div className="relative">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
+              <Search className="w-4 h-4 text-gray-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="닉네임으로 검색"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="flex-1 bg-transparent text-sm outline-none"
+              />
+            </div>
+
+            {/* 검색 결과 드롭다운 */}
+            {searchResults.length > 0 && !selectedUser && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
+                {searchResults.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedUser(u)
+                      setQuery(u.nickname)
+                      setSearchResults([])
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  >
+                    {u.nickname}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selectedUser && (
+            <>
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+                <span className="text-sm text-blue-700">선택된 유저:</span>
+                <span className="text-sm font-semibold text-blue-900">{selectedUser.nickname}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedUser(null)
+                    setQuery('')
+                  }}
+                  className="ml-auto"
+                >
+                  <X className="w-4 h-4 text-blue-400" />
+                </button>
+              </div>
+
+              <textarea
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                placeholder="제재 사유를 입력해주세요 (스팸, 광고, 욕설 등)"
+                className="w-full h-20 px-3 py-2.5 bg-gray-100 rounded-lg text-sm outline-none resize-none"
+              />
+
+              <button
+                type="button"
+                onClick={handleApplyPenalty}
+                disabled={!banReason.trim() || applying}
+                className={`w-full py-2.5 rounded-xl text-sm font-semibold ${
+                  banReason.trim() && !applying ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'
+                }`}
+              >
+                <UserMinus className="w-4 h-4 inline mr-1" />
+                {applying ? '처리 중...' : '제재 적용'}
+              </button>
+            </>
+          )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {BAN_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => setSelectedBan(selectedBan === opt ? '' : opt)}
-              className={`px-3 py-1.5 rounded-full text-sm ${
-                selectedBan === opt
-                  ? opt === '제재 해제' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
-                  : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
+
+        {/* 제재 중인 유저 목록 */}
+        <div>
+          <h3 className="text-sm font-bold text-gray-700 mb-2">현재 제재 중인 유저</h3>
+          {suspendedUsers.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-6">제재 중인 유저가 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {suspendedUsers.map((u) => (
+                <div key={u.id} className="bg-white rounded-xl px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{u.nickname}</p>
+                      <p className="text-xs text-gray-400">
+                        {formatSuspension(u.suspended_until)} · 누적 {u.penalty_count}회
+                      </p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+                      u.suspended_until && new Date(u.suspended_until).getFullYear() === 9999
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-orange-100 text-orange-600'
+                    }`}>
+                      {u.suspended_until && new Date(u.suspended_until).getFullYear() === 9999
+                        ? '영구 정지'
+                        : `${u.penalty_count}차 정지`}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => openHistory(u.id, u.nickname)}
+                      className="flex-1 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium"
+                    >
+                      이력 보기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePenalty(u.id, u.nickname)}
+                      className="flex-1 py-1.5 rounded-lg bg-green-50 text-green-600 text-xs font-medium"
+                    >
+                      제재 해제
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {selectedBan && selectedBan !== '제재 해제' && (
-          <textarea
-            value={banReason}
-            onChange={(e) => setBanReason(e.target.value)}
-            placeholder="제재 사유를 입력해주세요"
-            className="w-full h-20 px-3 py-2.5 bg-gray-100 rounded-lg text-sm outline-none resize-none"
-          />
-        )}
-        <button
-          type="button"
-          onClick={handleBan}
-          disabled={!query.trim() || !selectedBan}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold ${
-            query.trim() && selectedBan ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'
-          }`}
-        >
-          <UserMinus className="w-4 h-4 inline mr-1" />
-          적용
-        </button>
       </div>
 
-      {/* Banned list */}
-      <div>
-        <h3 className="text-sm font-bold text-gray-700 mb-2">현재 제재 중인 유저</h3>
-        {banned.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 py-6">제재 중인 유저가 없습니다.</p>
-        ) : (
-          <div className="space-y-2">
-            {banned.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800">{u.nickname}</p>
-                  <p className="text-xs text-gray-400">{u.reason} · {u.bannedAt}</p>
-                </div>
-                <span className="px-2 py-0.5 bg-red-50 text-red-500 rounded-full text-xs font-medium shrink-0">
-                  {u.duration}
-                </span>
+      {/* 제재 이력 모달 */}
+      {historyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setHistoryModal(null)} />
+          <div className="relative w-[90%] max-w-sm max-h-[70vh] bg-white rounded-2xl flex flex-col">
+            <div className="shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">제재 이력</h3>
+                <p className="text-xs text-gray-500">{historyModal.nickname}</p>
               </div>
-            ))}
+              <button type="button" onClick={() => setHistoryModal(null)}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {historyLoading ? (
+                <p className="text-center text-sm text-gray-400 py-6">불러오는 중...</p>
+              ) : penaltyHistory.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-6">제재 이력이 없습니다.</p>
+              ) : (
+                <div className="space-y-3">
+                  {penaltyHistory.map((p) => (
+                    <div key={p.id} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          p.penalty_type === 'permanent' ? 'bg-red-100 text-red-600'
+                            : p.penalty_type === '7day' ? 'bg-orange-100 text-orange-600'
+                            : 'bg-yellow-100 text-yellow-600'
+                        }`}>
+                          {penaltyTypeToKorean(p.penalty_type)}
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          {new Date(p.created_at).toLocaleDateString('ko-KR')}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700">{p.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   )
 }
 

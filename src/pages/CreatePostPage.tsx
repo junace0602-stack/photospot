@@ -3,7 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImageWithThumbnail, IMAGE_ACCEPT } from '../lib/imageUpload'
-import { moderateText, checkLinks, checkDuplicatePost } from '../lib/moderation'
+import { moderateText, checkDuplicatePost } from '../lib/moderation'
+import { checkSuspension } from '../lib/penalty'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { searchPlacesAutocomplete, getPlaceDetails, type AutocompleteResult } from '../lib/geocode'
@@ -552,6 +553,13 @@ export default function CreatePostPage() {
     setSubmitting(true)
 
     try {
+      // 정지 상태 체크
+      const suspension = await checkSuspension(user.id)
+      if (suspension.isSuspended) {
+        toast.error(suspension.message ?? '계정이 정지되었습니다.')
+        return
+      }
+
       // 텍스트 검열
       const allText = blocks
         .filter((b) => b.type === 'text')
@@ -561,13 +569,6 @@ export default function CreatePostPage() {
       const modResult = await moderateText(textToCheck)
       if (modResult.blocked) {
         toast.error(modResult.message ?? '부적절한 내용입니다.')
-        return
-      }
-
-      // 링크 제한 체크
-      const linkResult = checkLinks(textToCheck)
-      if (linkResult.blocked) {
-        toast.error(linkResult.message ?? '링크 오류입니다.')
         return
       }
 
