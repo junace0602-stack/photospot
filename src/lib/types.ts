@@ -41,6 +41,8 @@ export interface Post {
   safety: string | null
   reservation: string | null
   youtube_urls: string[] | null
+  place_type: string | null  // 자연/바다/도시/실내
+  tags: string[] | null  // 야경, 일출/일몰, 건축, 카페, 전통, 인물
   likes_count: number
   comment_count: number
   view_count: number

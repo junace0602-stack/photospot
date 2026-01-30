@@ -24,7 +24,7 @@ const BOARD_TYPES: BoardType[] = ['출사지', '일반', '사진', '장비']
 let blockId = 0
 const newId = () => String(++blockId)
 
-const CATEGORIES = ['자연', '바다', '도시', '건축', '야경', '실내', '감성'] as const
+const CATEGORIES = ['자연', '바다', '도시', '건축', '야경', '실내', '감성', '인물'] as const
 const TIME_SLOTS = ['일출', '오전', '오후', '일몰', '야간'] as const
 const TRIPOD_OPTS = ['가능', '불가'] as const
 const CROWDEDNESS = ['높음', '보통', '낮음'] as const
