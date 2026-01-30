@@ -1045,19 +1045,28 @@ export default function MapPage() {
       toast.error('이 브라우저에서는 위치 기능을 지원하지 않습니다.')
       return
     }
+
+    if (!mapReady || !mapInstanceRef.current) {
+      toast.error('지도를 불러오는 중입니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    toast.loading('현재 위치를 찾는 중...', { id: 'locating' })
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        toast.dismiss('locating')
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
         setUserPos({ lat, lng })
 
         const map = mapInstanceRef.current
         if (map) {
-          map.panTo({ lat, lng })
+          map.setCenter({ lat, lng })
           map.setZoom(14)
         }
 
-        // 파란색 점 마커 표시/업데이트
+        // 주황색 점 마커 표시/업데이트
         if (userLocationMarkerRef.current) {
           userLocationMarkerRef.current.position = { lat, lng }
           if (map) userLocationMarkerRef.current.map = map
@@ -1075,15 +1084,18 @@ export default function MapPage() {
         }
       },
       (err) => {
+        toast.dismiss('locating')
         if (err.code === err.PERMISSION_DENIED) {
-          toast.error('위치 권한이 필요합니다.')
+          toast.error('위치 권한을 허용해주세요.')
+        } else if (err.code === err.TIMEOUT) {
+          toast.error('위치 확인 시간이 초과되었습니다. 다시 시도해주세요.')
         } else {
           toast.error('현재 위치를 가져올 수 없습니다.')
         }
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     )
-  }, [])
+  }, [mapReady])
 
   /* ── 드래그 핸들러 — 모든 위치 계산은 px 단위, DOM 직접 조작 ── */
 
