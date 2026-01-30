@@ -24,7 +24,7 @@ const BOARD_TYPES: BoardType[] = ['출사지', '일반', '사진', '장비']
 let blockId = 0
 const newId = () => String(++blockId)
 
-const CATEGORIES = ['자연', '바다', '도시', '건축', '야경', '실내', '감성', '인물'] as const
+const ALL_TAGS = ['자연', '바다', '도시', '실내', '야경', '일출/일몰', '건축', '카페', '전통', '인물'] as const
 const TIME_SLOTS = ['일출', '오전', '오후', '일몰', '야간'] as const
 const TRIPOD_OPTS = ['가능', '불가'] as const
 const CROWDEDNESS = ['높음', '보통', '낮음'] as const
@@ -106,7 +106,16 @@ export default function CreatePostPage() {
   const { spotId: paramSpotId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, profile } = useAuth()
+  const { user, profile, loggedIn, loading } = useAuth()
+
+  // 디버그: Auth 상태 확인
+  console.log('[CreatePost] Auth 상태:', {
+    loggedIn,
+    loading,
+    hasUser: !!user,
+    userId: user?.id,
+    hasProfile: !!profile
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [submitting, setSubmitting] = useState(false)
   const [isAnonymous, setIsAnonymous] = useState(false)
@@ -455,7 +464,7 @@ export default function CreatePostPage() {
   }
 
   // Meta state — 기본 (항상 보임)
-  const [categories, setCategories] = useState<Set<string>>(new Set())
+  const [tags, setTags] = useState<Set<string>>(new Set())  // 태그 (복수 선택)
   const [timeSlots, setTimeSlots] = useState<Set<string>>(new Set())
   const [tripod, setTripod] = useState('')
   const [tripodNote, setTripodNote] = useState('')
@@ -492,7 +501,7 @@ export default function CreatePostPage() {
     if (editorBlocks.length === 0) editorBlocks.push({ type: 'text', id: newId(), text: '' })
     setBlocks(editorBlocks)
     // meta — 기본
-    if (editPost.categories.length) setCategories(new Set(editPost.categories))
+    if (editPost.tags?.length) setTags(new Set(editPost.tags))
     if (editPost.time_slots.length) setTimeSlots(new Set(editPost.time_slots))
     if (editPost.tripod) setTripod(editPost.tripod)
     if (editPost.tripod_note) setTripodNote(editPost.tripod_note)
@@ -603,6 +612,20 @@ export default function CreatePostPage() {
     ? !!spotId && hasTitle && !isUploading && !submitting
     : hasTitle && !isUploading && !submitting
 
+  // 디버그: 폼 상태 로깅
+  console.log('[CreatePost] 폼 상태:', {
+    isSpot,
+    spotId,
+    hasTitle,
+    title: title.trim(),
+    isUploading,
+    submitting,
+    canSubmit,
+    uploadingIds: [...uploadingIds],
+    hasPhotos,
+    tagsCount: tags.size,
+  })
+
   const handleAddPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
@@ -704,7 +727,11 @@ export default function CreatePostPage() {
   }
 
   const handleSubmit = async () => {
-    if (!canSubmit || !user || submitting) return
+    console.log('[CreatePost] 등록 버튼 클릭!', { canSubmit, user: !!user, submitting })
+    if (!canSubmit || !user || submitting) {
+      console.log('[CreatePost] 제출 차단됨:', { canSubmit, hasUser: !!user, submitting })
+      return
+    }
 
     // 사진 필수 체크 (출사지/사진 탭)
     if (requiresPhoto && !hasPhotos) {
@@ -761,7 +788,8 @@ export default function CreatePostPage() {
           title: title.trim(),
           content_blocks: contentBlocks,
           thumbnail_url: firstPhoto?.thumbnailUrl ?? firstPhoto?.url ?? null,
-          categories: [...categories],
+          categories: [...tags],  // tags를 categories에도 저장 (호환성)
+          tags: tags.size > 0 ? [...tags] : null,
           time_slots: [...timeSlots],
           tripod: tripod || null,
           tripod_note: (tripod === '기타' && tripodNote.trim()) ? tripodNote.trim() : null,
@@ -1236,10 +1264,10 @@ export default function CreatePostPage() {
             {/* ── 기본 정보 (항상 보임) ── */}
             <div className="px-4 py-4 space-y-5">
               <ChipGroup
-                label="카테고리 태그 (복수 선택)"
-                options={CATEGORIES}
-                selected={categories}
-                onToggle={(v) => setCategories(toggleSet(categories, v))}
+                label="태그 (복수 선택)"
+                options={ALL_TAGS}
+                selected={tags}
+                onToggle={(v) => setTags(toggleSet(tags, v))}
               />
               <ChipGroup
                 label="추천 시간대 (복수 선택)"

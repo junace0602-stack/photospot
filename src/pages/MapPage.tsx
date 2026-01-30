@@ -518,15 +518,13 @@ export default function MapPage() {
 
   // 필터 바텀시트
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
-  const [placeTypeFilter, setPlaceTypeFilter] = useState<string | null>(null)
   const [tagsFilter, setTagsFilter] = useState<Set<string>>(new Set())
 
-  // 필터 상수
-  const PLACE_TYPES = ['자연', '바다', '도시', '실내'] as const
-  const FEATURE_TAGS = ['야경', '일출/일몰', '건축', '카페', '전통', '인물'] as const
+  // 필터 상수 (통합 태그)
+  const ALL_TAGS = ['자연', '바다', '도시', '실내', '야경', '일출/일몰', '건축', '카페', '전통', '인물'] as const
 
   // 필터 적용 여부
-  const hasActiveFilter = provinceFilter !== null || placeTypeFilter !== null || tagsFilter.size > 0
+  const hasActiveFilter = provinceFilter !== null || tagsFilter.size > 0
 
   // 목록 컨트롤
   const [listSort, setListSort] = useState<'nearest' | 'newest' | 'popular'>('nearest')
@@ -920,14 +918,6 @@ export default function MapPage() {
       items = items.filter((p) => p.name.toLowerCase().includes(q))
     }
 
-    // 장소 유형 필터
-    if (placeTypeFilter) {
-      items = items.filter((p) => {
-        const st = placeStats.get(p.id)
-        return st?.placeTypes.has(placeTypeFilter)
-      })
-    }
-
     // 태그 필터 (OR 조건 - 하나라도 포함되면 표시)
     if (tagsFilter.size > 0) {
       items = items.filter((p) => {
@@ -953,7 +943,7 @@ export default function MapPage() {
     }
 
     return items
-  }, [places, userPos, placeStats, searchQuery, listSort, region, countryFilter, provinceFilter, districtFilter, placeTypeFilter, tagsFilter])
+  }, [places, userPos, placeStats, searchQuery, listSort, region, countryFilter, provinceFilter, districtFilter, tagsFilter])
 
   // 나라 검색 결과 (모든 알려진 나라에서 검색)
   const filteredCountries = useMemo(() => {
@@ -2327,32 +2317,11 @@ export default function MapPage() {
                 </div>
               </div>
 
-              {/* 장소 유형 */}
+              {/* 태그 (복수 선택) */}
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">장소 유형</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">태그 (복수 선택)</h4>
                 <div className="flex flex-wrap gap-2">
-                  {PLACE_TYPES.map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setPlaceTypeFilter(placeTypeFilter === type ? null : type)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                        placeTypeFilter === type
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 특징 태그 */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">특징</h4>
-                <div className="flex flex-wrap gap-2">
-                  {FEATURE_TAGS.map((tag) => {
+                  {ALL_TAGS.map((tag) => {
                     const isSelected = tagsFilter.has(tag)
                     return (
                       <button
@@ -2388,7 +2357,6 @@ export default function MapPage() {
                 onClick={() => {
                   setProvinceFilter(null)
                   setDistrictFilter(null)
-                  setPlaceTypeFilter(null)
                   setTagsFilter(new Set())
                 }}
                 className="flex-1 py-3 rounded-xl text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"

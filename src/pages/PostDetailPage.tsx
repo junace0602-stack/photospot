@@ -535,6 +535,28 @@ export default function PostDetailPage() {
     [comments, isBlocked],
   )
 
+  // 본문에서 YouTube URL 추출 (Hook은 early return 전에 선언)
+  const youtubeVideos = useMemo(() => {
+    if (!post) return []
+    const blocks = post.content_blocks ?? []
+    // youtube_urls 필드가 배열이고 값이 있으면 그것 사용, 없으면 본문에서 추출
+    const youtubeUrls = Array.isArray(post.youtube_urls) ? post.youtube_urls : []
+    if (youtubeUrls.length > 0) {
+      return extractYouTubeUrls(youtubeUrls.join(' '))
+    }
+    const allText = blocks
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text ?? '')
+      .join('\n')
+    return extractYouTubeUrls(allText)
+  }, [post])
+
+  // tags 배열 안전하게 처리 (Hook은 early return 전에 선언)
+  const postTags = useMemo(() => {
+    if (!post) return []
+    return Array.isArray(post.tags) ? post.tags : []
+  }, [post])
+
   const handleDeletePost = useCallback(async () => {
     if (!postId || !spotId || deleting) return
     if (!confirm('이 글을 삭제하시겠습니까?')) return
@@ -619,25 +641,6 @@ export default function PostDetailPage() {
 
   const blocks: ContentBlock[] = post.content_blocks
   const photos = blocks.filter((b) => b.type === 'photo').map((b) => b.url!)
-
-  // 본문에서 YouTube URL 추출
-  const youtubeVideos = useMemo(() => {
-    // youtube_urls 필드가 배열이고 값이 있으면 그것 사용, 없으면 본문에서 추출
-    const youtubeUrls = Array.isArray(post.youtube_urls) ? post.youtube_urls : []
-    if (youtubeUrls.length > 0) {
-      return extractYouTubeUrls(youtubeUrls.join(' '))
-    }
-    const allText = blocks
-      .filter((b) => b.type === 'text')
-      .map((b) => b.text ?? '')
-      .join('\n')
-    return extractYouTubeUrls(allText)
-  }, [post.youtube_urls, blocks])
-
-  // tags 배열 안전하게 처리
-  const postTags = useMemo(() => {
-    return Array.isArray(post.tags) ? post.tags : []
-  }, [post.tags])
 
   // Build meta rows
   const metaRows: { icon: typeof Car; label: string; value: string }[] = []
