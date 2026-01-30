@@ -1046,22 +1046,28 @@ export default function MapPage() {
       return
     }
 
-    if (!mapReady || !mapInstanceRef.current) {
+    const map = mapInstanceRef.current
+    if (!mapReady || !map) {
       toast.error('지도를 불러오는 중입니다. 잠시 후 다시 시도해주세요.')
       return
     }
 
-    toast.loading('현재 위치를 찾는 중...', { id: 'locating' })
+    // 이전 위치가 있으면 먼저 그 위치로 즉시 이동
+    const hasCache = userPos.lat !== SEOUL.lat || userPos.lng !== SEOUL.lng
+    if (hasCache) {
+      map.setCenter(userPos)
+      map.setZoom(14)
+    }
 
+    // 백그라운드에서 새 위치 가져오기
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        toast.dismiss('locating')
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
         setUserPos({ lat, lng })
 
-        const map = mapInstanceRef.current
-        if (map) {
+        // 새 위치로 지도 이동 (캐시 없었거나 위치가 변경된 경우)
+        if (!hasCache || Math.abs(lat - userPos.lat) > 0.001 || Math.abs(lng - userPos.lng) > 0.001) {
           map.setCenter({ lat, lng })
           map.setZoom(14)
         }
@@ -1069,8 +1075,8 @@ export default function MapPage() {
         // 주황색 점 마커 표시/업데이트
         if (userLocationMarkerRef.current) {
           userLocationMarkerRef.current.position = { lat, lng }
-          if (map) userLocationMarkerRef.current.map = map
-        } else if (map) {
+          userLocationMarkerRef.current.map = map
+        } else {
           const dot = document.createElement('div')
           dot.style.cssText =
             'width:18px;height:18px;background:#EA580C;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 1px 4px rgba(0,0,0,0.3);'
@@ -1084,18 +1090,18 @@ export default function MapPage() {
         }
       },
       (err) => {
-        toast.dismiss('locating')
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error('위치 권한을 허용해주세요.')
-        } else if (err.code === err.TIMEOUT) {
-          toast.error('위치 확인 시간이 초과되었습니다. 다시 시도해주세요.')
-        } else {
-          toast.error('현재 위치를 가져올 수 없습니다.')
+        // 캐시가 없을 때만 에러 표시
+        if (!hasCache) {
+          if (err.code === err.PERMISSION_DENIED) {
+            toast.error('위치 권한을 허용해주세요.')
+          } else {
+            toast.error('현재 위치를 가져올 수 없습니다.')
+          }
         }
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
     )
-  }, [mapReady])
+  }, [mapReady, userPos])
 
   /* ── 드래그 핸들러 — 모든 위치 계산은 px 단위, DOM 직접 조작 ── */
 
