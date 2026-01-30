@@ -275,8 +275,9 @@ export default function ListPage() {
   const [showLensSuggestions, setShowLensSuggestions] = useState(false)
   const [selectedCamera, setSelectedCamera] = useState<string | null>(null)
   const [selectedLens, setSelectedLens] = useState<string | null>(null)
-  const [equipmentResults, setEquipmentResults] = useState<{ id: string; kind: 'community' | 'spot'; thumbnail_url: string; place_id?: string }[]>([])
+  const [equipmentResults, setEquipmentResults] = useState<ListItem[]>([])
   const [equipmentLoading, setEquipmentLoading] = useState(false)
+  const [equipmentSubFilter, setEquipmentSubFilter] = useState<'전체' | '작례' | '게시글'>('전체')
 
   /* ── 무한 스크롤 상태 ── */
   const [items, setItems] = useState<ListItem[]>([])
@@ -390,7 +391,7 @@ export default function ListPage() {
     return () => clearTimeout(timer)
   }, [lensQuery, selectedLens])
 
-  /* ── 장비로 사진 검색 ── */
+  /* ── 장비로 검색 ── */
   useEffect(() => {
     if (section !== '장비' || (!selectedCamera && !selectedLens)) {
       setEquipmentResults([])
@@ -401,51 +402,148 @@ export default function ListPage() {
     setEquipmentLoading(true)
 
     const searchEquipment = async () => {
-      const results: { id: string; kind: 'community' | 'spot'; thumbnail_url: string; place_id?: string }[] = []
+      const results: ListItem[] = []
+      const searchKeyword = selectedCamera || selectedLens || ''
 
-      // community_posts 검색
-      let communityQuery = supabase
-        .from('community_posts')
-        .select('id, thumbnail_url, exif_data')
-        .not('thumbnail_url', 'is', null)
-        .limit(100)
+      // 작례 검색 (EXIF 기반) - '전체' 또는 '작례' 필터
+      if (equipmentSubFilter === '전체' || equipmentSubFilter === '작례') {
+        // community_posts EXIF 검색
+        let communityExifQuery = supabase
+          .from('community_posts')
+          .select('id, user_id, author_nickname, section, title, content, thumbnail_url, image_urls, likes_count, comment_count, view_count, is_anonymous, created_at, price, event_id')
+          .order('created_at', { ascending: false })
+          .limit(50)
 
-      if (selectedCamera) {
-        communityQuery = communityQuery.eq('exif_data->>camera', selectedCamera)
-      }
-      if (selectedLens) {
-        communityQuery = communityQuery.eq('exif_data->>lens', selectedLens)
-      }
-
-      // posts 검색 (place_id 포함)
-      let postsQuery = supabase
-        .from('posts')
-        .select('id, thumbnail_url, exif_data, place_id')
-        .not('thumbnail_url', 'is', null)
-        .limit(100)
-
-      if (selectedCamera) {
-        postsQuery = postsQuery.eq('exif_data->>camera', selectedCamera)
-      }
-      if (selectedLens) {
-        postsQuery = postsQuery.eq('exif_data->>lens', selectedLens)
-      }
-
-      const [communityRes, postsRes] = await Promise.all([communityQuery, postsQuery])
-
-      if (cancelled) return
-
-      // 결과 합치기
-      ;(communityRes.data ?? []).forEach((p) => {
-        if (p.thumbnail_url) {
-          results.push({ id: p.id, kind: 'community', thumbnail_url: p.thumbnail_url })
+        if (selectedCamera) {
+          communityExifQuery = communityExifQuery.eq('exif_data->>camera', selectedCamera)
         }
-      })
-      ;(postsRes.data ?? []).forEach((p) => {
-        if (p.thumbnail_url && p.place_id) {
-          results.push({ id: p.id, kind: 'spot', thumbnail_url: p.thumbnail_url, place_id: p.place_id })
+        if (selectedLens) {
+          communityExifQuery = communityExifQuery.eq('exif_data->>lens', selectedLens)
         }
-      })
+
+        // posts EXIF 검색
+        let postsExifQuery = supabase
+          .from('posts')
+          .select('id, user_id, author_nickname, title, content_blocks, thumbnail_url, likes_count, comment_count, is_anonymous, created_at, place_id')
+          .order('created_at', { ascending: false })
+          .limit(50)
+
+        if (selectedCamera) {
+          postsExifQuery = postsExifQuery.eq('exif_data->>camera', selectedCamera)
+        }
+        if (selectedLens) {
+          postsExifQuery = postsExifQuery.eq('exif_data->>lens', selectedLens)
+        }
+
+        const [communityExifRes, postsExifRes] = await Promise.all([communityExifQuery, postsExifQuery])
+
+        if (cancelled) return
+
+        // community_posts 결과 추가
+        ;(communityExifRes.data ?? []).forEach((p) => {
+          results.push({
+            id: p.id,
+            user_id: p.user_id,
+            kind: 'community',
+            section: p.section,
+            title: p.title,
+            content: p.content,
+            author_nickname: p.author_nickname,
+            is_anonymous: p.is_anonymous,
+            created_at: p.created_at,
+            likes_count: p.likes_count,
+            comment_count: p.comment_count,
+            view_count: p.view_count ?? 0,
+            thumbnail_url: p.thumbnail_url,
+            imageUrls: p.image_urls ?? [],
+            spotName: '',
+            place_id: '',
+            price: p.price,
+            eventId: p.event_id ?? undefined,
+            eventName: p.event_id ? eventNameMapRef.current.get(p.event_id) : undefined,
+          })
+        })
+
+        // posts 결과 추가
+        ;(postsExifRes.data ?? []).forEach((p) => {
+          if (p.place_id) {
+            const firstText = (p.content_blocks as { type: string; text?: string }[])?.find(
+              (b) => b.type === 'text' && b.text?.trim()
+            )
+            results.push({
+              id: p.id,
+              user_id: p.user_id,
+              kind: 'spot',
+              section: '출사지',
+              title: p.title,
+              content: firstText?.text ?? '',
+              author_nickname: p.author_nickname,
+              is_anonymous: p.is_anonymous,
+              created_at: p.created_at,
+              likes_count: p.likes_count,
+              comment_count: p.comment_count ?? 0,
+              view_count: 0,
+              thumbnail_url: p.thumbnail_url,
+              imageUrls: [],
+              spotName: '',
+              place_id: p.place_id,
+              price: null,
+            })
+          }
+        })
+      }
+
+      // 게시글 검색 (제목/본문 키워드) - '전체' 또는 '게시글' 필터
+      if (equipmentSubFilter === '전체' || equipmentSubFilter === '게시글') {
+        // community_posts에서 section='장비' 글 또는 제목/본문에 키워드 포함
+        let communityKeywordQuery = supabase
+          .from('community_posts')
+          .select('id, user_id, author_nickname, section, title, content, thumbnail_url, image_urls, likes_count, comment_count, view_count, is_anonymous, created_at, price, event_id, camera_model, lens_model')
+          .order('created_at', { ascending: false })
+          .limit(50)
+
+        // section='장비' 이거나 키워드 포함
+        if (searchKeyword) {
+          communityKeywordQuery = communityKeywordQuery.or(`section.eq.장비,title.ilike.%${searchKeyword}%,content.ilike.%${searchKeyword}%`)
+        } else {
+          communityKeywordQuery = communityKeywordQuery.eq('section', '장비')
+        }
+
+        const communityKeywordRes = await communityKeywordQuery
+
+        if (cancelled) return
+
+        // 중복 제거하며 추가
+        const existingIds = new Set(results.map((r) => r.id))
+        ;(communityKeywordRes.data ?? []).forEach((p) => {
+          if (!existingIds.has(p.id)) {
+            results.push({
+              id: p.id,
+              user_id: p.user_id,
+              kind: 'community',
+              section: p.section,
+              title: p.title,
+              content: p.content,
+              author_nickname: p.author_nickname,
+              is_anonymous: p.is_anonymous,
+              created_at: p.created_at,
+              likes_count: p.likes_count,
+              comment_count: p.comment_count,
+              view_count: p.view_count ?? 0,
+              thumbnail_url: p.thumbnail_url,
+              imageUrls: p.image_urls ?? [],
+              spotName: '',
+              place_id: '',
+              price: p.price,
+              eventId: p.event_id ?? undefined,
+              eventName: p.event_id ? eventNameMapRef.current.get(p.event_id) : undefined,
+            })
+          }
+        })
+      }
+
+      // 최신순 정렬
+      results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
       setEquipmentResults(results)
       setEquipmentLoading(false)
@@ -453,7 +551,7 @@ export default function ListPage() {
 
     searchEquipment()
     return () => { cancelled = true }
-  }, [section, selectedCamera, selectedLens])
+  }, [section, selectedCamera, selectedLens, equipmentSubFilter])
 
   /* 네비게이션 직전에 스크롤 위치 저장 */
   const saveScrollBeforeNav = useCallback(() => {
@@ -853,10 +951,28 @@ export default function ListPage() {
             )}
           </div>
 
+          {/* 서브 필터 */}
+          {(selectedCamera || selectedLens) && (
+            <div className="flex gap-2 mt-2">
+              {(['전체', '작례', '게시글'] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setEquipmentSubFilter(f)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    equipmentSubFilter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* 선택된 장비 표시 */}
           {(selectedCamera || selectedLens) && (
-            <p className="text-xs text-gray-500">
-              {equipmentLoading ? '검색 중...' : `${equipmentResults.length}개의 사진을 찾았습니다.`}
+            <p className="text-xs text-gray-500 mt-2">
+              {equipmentLoading ? '검색 중...' : `${equipmentResults.length}개의 글을 찾았습니다.`}
             </p>
           )}
         </div>
@@ -869,12 +985,12 @@ export default function ListPage() {
             불러오는 중...
           </div>
         ) : isEquipment ? (
-          /* ── 장비 탭: 검색 결과 그리드 ── */
+          /* ── 장비 탭: 목록 형식 ── */
           !selectedCamera && !selectedLens ? (
             <div className="flex flex-col items-center justify-center h-40 text-sm text-gray-400">
               <Camera className="w-12 h-12 text-gray-200 mb-3" />
               <p>카메라 또는 렌즈를 검색하세요</p>
-              <p className="text-xs mt-1">EXIF 정보가 있는 사진만 검색됩니다</p>
+              <p className="text-xs mt-1">작례(EXIF)와 게시글을 함께 검색합니다</p>
             </div>
           ) : equipmentLoading ? (
             <div className="flex items-center justify-center h-40 text-sm text-gray-400">
@@ -886,33 +1002,53 @@ export default function ListPage() {
               검색 결과가 없습니다.
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
-              {equipmentResults.map((item) => (
-                <button
+            <div className="bg-white">
+              {equipmentResults.filter((item) => !isBlocked(item.user_id)).map((item) => (
+                <Link
                   key={`${item.kind}-${item.id}`}
-                  type="button"
-                  onClick={() => {
-                    saveScrollBeforeNav()
-                    if (item.kind === 'community') {
-                      navigate(`/community/${item.id}`)
-                    } else {
-                      navigate(`/spots/${item.place_id}/posts/${item.id}`)
-                    }
-                  }}
-                  className="relative aspect-square overflow-hidden bg-gray-100"
+                  to={item.kind === 'community' ? `/community/${item.id}` : `/spots/${item.place_id}/posts/${item.id}`}
+                  className="block"
+                  onClick={saveScrollBeforeNav}
                 >
-                  <LazyImage
-                    src={getLowQualityImageUrl(item.thumbnail_url, 50)}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                  {/* 출사지 글 표시 */}
-                  {item.kind === 'spot' && (
-                    <div className="absolute top-1 left-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                      <MapPin className="w-3 h-3 text-white" />
+                  <div className="flex items-start gap-2 px-4 py-2.5 border-b border-gray-100">
+                    <div className="flex-1 min-w-0 flex justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-900 font-medium line-clamp-1">
+                          {item.thumbnail_url && (
+                            <Camera className="inline-block w-3.5 h-3.5 mr-1 text-gray-400 align-text-bottom" />
+                          )}
+                          {item.kind === 'spot' && (
+                            <MapPin className="inline-block w-3.5 h-3.5 mr-1 text-blue-500 align-text-bottom" />
+                          )}
+                          {item.title}
+                          {item.comment_count > 0 && (
+                            <span className="ml-1 text-blue-500 font-medium">
+                              [{item.comment_count}]
+                            </span>
+                          )}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400">
+                          <span>{displayName(item.author_nickname, item.is_anonymous, isAdminMode)}</span>
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end text-xs text-gray-400">
+                        <span>{relativeTime(item.created_at)}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          {item.view_count > 0 && (
+                            <span className="flex items-center gap-0.5">
+                              <Eye className="w-3 h-3" />
+                              {item.view_count}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-0.5">
+                            <ThumbsUp className="w-3 h-3" />
+                            {item.likes_count}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </button>
+                  </div>
+                </Link>
               ))}
             </div>
           )

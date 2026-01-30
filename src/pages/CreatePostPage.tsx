@@ -16,8 +16,8 @@ type PhotoBlock = { type: 'photo'; id: string; url: string; thumbnailUrl?: strin
 type TextBlock = { type: 'text'; id: string; text: string }
 type ContentBlock = PhotoBlock | TextBlock
 
-type BoardType = '출사지' | '일반' | '사진' | '질문'
-const BOARD_TYPES: BoardType[] = ['출사지', '일반', '사진', '질문']
+type BoardType = '출사지' | '일반' | '사진' | '질문' | '장비'
+const BOARD_TYPES: BoardType[] = ['출사지', '일반', '사진', '질문', '장비']
 
 let blockId = 0
 const newId = () => String(++blockId)
@@ -408,6 +408,14 @@ export default function CreatePostPage() {
   const [safety, setSafety] = useState('')
   const [reservation, setReservation] = useState('')
 
+  // 장비 글쓰기 전용
+  const [cameraModel, setCameraModel] = useState('')
+  const [lensModel, setLensModel] = useState('')
+  const [cameraSuggestions, setCameraSuggestions] = useState<string[]>([])
+  const [lensSuggestions, setLensSuggestions] = useState<string[]>([])
+  const [showCameraSuggestions, setShowCameraSuggestions] = useState(false)
+  const [showLensSuggestions, setShowLensSuggestions] = useState(false)
+
   // 수정 모드 초기화
   useEffect(() => {
     if (!editPost) return
@@ -438,6 +446,80 @@ export default function CreatePostPage() {
     setIsDomestic(editPost.is_domestic ?? true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 카메라 자동완성
+  useEffect(() => {
+    if (boardType !== '장비' || !cameraModel.trim()) {
+      setCameraSuggestions([])
+      return
+    }
+    const q = cameraModel.trim().toLowerCase()
+    const timer = setTimeout(async () => {
+      const [communityRes, postsRes] = await Promise.all([
+        supabase
+          .from('community_posts')
+          .select('exif_data, camera_model')
+          .limit(300),
+        supabase
+          .from('posts')
+          .select('exif_data')
+          .not('exif_data', 'is', null)
+          .limit(300),
+      ])
+
+      const cameras = new Set<string>()
+      ;(communityRes.data ?? []).forEach((row) => {
+        const exifCamera = (row.exif_data as { camera?: string } | null)?.camera
+        if (exifCamera && exifCamera.toLowerCase().includes(q)) cameras.add(exifCamera)
+        const manualCamera = row.camera_model as string | null
+        if (manualCamera && manualCamera.toLowerCase().includes(q)) cameras.add(manualCamera)
+      })
+      ;(postsRes.data ?? []).forEach((row) => {
+        const camera = (row.exif_data as { camera?: string })?.camera
+        if (camera && camera.toLowerCase().includes(q)) cameras.add(camera)
+      })
+      setCameraSuggestions([...cameras].slice(0, 8))
+      setShowCameraSuggestions(cameras.size > 0)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [boardType, cameraModel])
+
+  // 렌즈 자동완성
+  useEffect(() => {
+    if (boardType !== '장비' || !lensModel.trim()) {
+      setLensSuggestions([])
+      return
+    }
+    const q = lensModel.trim().toLowerCase()
+    const timer = setTimeout(async () => {
+      const [communityRes, postsRes] = await Promise.all([
+        supabase
+          .from('community_posts')
+          .select('exif_data, lens_model')
+          .limit(300),
+        supabase
+          .from('posts')
+          .select('exif_data')
+          .not('exif_data', 'is', null)
+          .limit(300),
+      ])
+
+      const lenses = new Set<string>()
+      ;(communityRes.data ?? []).forEach((row) => {
+        const exifLens = (row.exif_data as { lens?: string } | null)?.lens
+        if (exifLens && exifLens.toLowerCase().includes(q)) lenses.add(exifLens)
+        const manualLens = row.lens_model as string | null
+        if (manualLens && manualLens.toLowerCase().includes(q)) lenses.add(manualLens)
+      })
+      ;(postsRes.data ?? []).forEach((row) => {
+        const lens = (row.exif_data as { lens?: string })?.lens
+        if (lens && lens.toLowerCase().includes(q)) lenses.add(lens)
+      })
+      setLensSuggestions([...lenses].slice(0, 8))
+      setShowLensSuggestions(lenses.size > 0)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [boardType, lensModel])
 
   const toggleSet = (set: Set<string>, value: string) => {
     const next = new Set(set)
@@ -676,6 +758,11 @@ export default function CreatePostPage() {
         if (boardType === '사진' && selectedChallengeId) {
           row.event_id = selectedChallengeId
         }
+        // 장비 글쓰기: camera_model, lens_model 추가
+        if (boardType === '장비') {
+          if (cameraModel.trim()) row.camera_model = cameraModel.trim()
+          if (lensModel.trim()) row.lens_model = lensModel.trim()
+        }
 
         const { error } = await supabase.from('community_posts').insert(row)
 
@@ -795,6 +882,73 @@ export default function CreatePostPage() {
                   <option key={c.id} value={c.id}>{c.title}</option>
                 ))}
               </select>
+            </div>
+          </div>
+        )}
+
+        {/* 장비 선택 (장비 전용) */}
+        {boardType === '장비' && (
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 space-y-3">
+            {/* 카메라 */}
+            <div className="relative">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">카메라 (선택)</label>
+              <input
+                type="text"
+                value={cameraModel}
+                onChange={(e) => setCameraModel(e.target.value)}
+                onFocus={() => cameraSuggestions.length > 0 && setShowCameraSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowCameraSuggestions(false), 150)}
+                placeholder="예: Sony A7IV, Canon R5"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400"
+              />
+              {showCameraSuggestions && cameraSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-40 overflow-y-auto">
+                  {cameraSuggestions.map((cam) => (
+                    <button
+                      key={cam}
+                      type="button"
+                      onMouseDown={() => {
+                        setCameraModel(cam)
+                        setShowCameraSuggestions(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 border-b border-gray-100"
+                    >
+                      {cam}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 렌즈 */}
+            <div className="relative">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">렌즈 (선택)</label>
+              <input
+                type="text"
+                value={lensModel}
+                onChange={(e) => setLensModel(e.target.value)}
+                onFocus={() => lensSuggestions.length > 0 && setShowLensSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowLensSuggestions(false), 150)}
+                placeholder="예: 24-70mm f/2.8, 85mm f/1.4"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400"
+              />
+              {showLensSuggestions && lensSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-40 overflow-y-auto">
+                  {lensSuggestions.map((lens) => (
+                    <button
+                      key={lens}
+                      type="button"
+                      onMouseDown={() => {
+                        setLensModel(lens)
+                        setShowLensSuggestions(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 border-b border-gray-100"
+                    >
+                      {lens}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
