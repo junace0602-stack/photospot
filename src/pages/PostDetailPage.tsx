@@ -6,6 +6,7 @@ import { share } from '../utils/share'
 import { supabase } from '../lib/supabase'
 import { moderateText, checkDuplicateComment } from '../lib/moderation'
 import { checkSuspension } from '../lib/penalty'
+import { hasExifData, type ExifData } from '../lib/exif'
 import { notifyComment, notifyPopular } from '../lib/notifications'
 import { useAuth } from '../contexts/AuthContext'
 import { useBlockedUsers } from '../hooks/useBlockedUsers'
@@ -35,21 +36,26 @@ import {
   MoreVertical,
   Ban,
   Eye,
+  Info,
+  Aperture,
 } from 'lucide-react'
 
 function PhotoViewer({
   photos,
   startIndex,
   onClose,
+  exifData,
 }: {
   photos: string[]
   startIndex: number
   onClose: () => void
+  exifData?: ExifData | null
 }) {
   const [index, setIndex] = useState(startIndex)
   const touchStartX = useRef(0)
   const touchDeltaX = useRef(0)
   const [offsetX, setOffsetX] = useState(0)
+  const [showExif, setShowExif] = useState(false)
 
   const hasPrev = index > 0
   const hasNext = index < photos.length - 1
@@ -61,11 +67,14 @@ function PhotoViewer({
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') prev()
       else if (e.key === 'ArrowRight') next()
-      else if (e.key === 'Escape') onClose()
+      else if (e.key === 'Escape') {
+        if (showExif) setShowExif(false)
+        else onClose()
+      }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose, photos.length])
+  }, [onClose, photos.length, showExif])
 
   const onTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
@@ -81,19 +90,37 @@ function PhotoViewer({
     setOffsetX(0)
   }
 
+  const handleBackgroundClick = () => {
+    if (showExif) setShowExif(false)
+    else onClose()
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-white text-sm font-medium">
           {index + 1} / {photos.length}
         </span>
-        <button type="button" onClick={onClose}>
-          <X className="w-6 h-6 text-white" />
-        </button>
+        <div className="flex items-center gap-2">
+          {hasExifData(exifData) && (
+            <button
+              type="button"
+              onClick={() => setShowExif(!showExif)}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                showExif ? 'bg-white text-black' : 'bg-white/20 text-white hover:bg-white/30'
+              }`}
+            >
+              <Info className="w-5 h-5" />
+            </button>
+          )}
+          <button type="button" onClick={onClose}>
+            <X className="w-6 h-6 text-white" />
+          </button>
+        </div>
       </div>
       <div
         className="flex-1 flex items-center justify-center overflow-hidden relative"
-        onClick={onClose}
+        onClick={handleBackgroundClick}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -104,7 +131,13 @@ function PhotoViewer({
           className="max-w-full max-h-full object-contain transition-transform duration-150"
           style={{ transform: `translateX(${offsetX}px)` }}
           draggable={false}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            if (showExif) {
+              setShowExif(false)
+            } else {
+              e.stopPropagation()
+            }
+          }}
         />
 
         {/* PC 좌우 화살표 */}
@@ -125,6 +158,60 @@ function PhotoViewer({
           >
             <ChevronRight className="w-6 h-6 text-white" />
           </button>
+        )}
+
+        {/* EXIF 팝업 */}
+        {showExif && exifData && (
+          <div
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-xl p-4 min-w-[260px] max-w-[90%]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-white">
+                <Camera className="w-4 h-4" />
+                <span className="text-sm font-semibold">촬영 정보</span>
+              </div>
+              <button type="button" onClick={() => setShowExif(false)}>
+                <X className="w-4 h-4 text-white/60 hover:text-white" />
+              </button>
+            </div>
+            <div className="space-y-2 text-sm text-white/90">
+              {exifData.dateTime && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-white/60 shrink-0" />
+                  <span>{exifData.dateTime}</span>
+                </div>
+              )}
+              {exifData.camera && (
+                <div className="flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-white/60 shrink-0" />
+                  <span>{exifData.camera}</span>
+                </div>
+              )}
+              {exifData.lens && (
+                <div className="flex items-center gap-2">
+                  <Aperture className="w-4 h-4 text-white/60 shrink-0" />
+                  <span>{exifData.lens}</span>
+                </div>
+              )}
+              {(exifData.aperture || exifData.shutterSpeed || exifData.iso) && (
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 text-white/60 shrink-0 text-center text-xs">ISO</span>
+                  <span>
+                    {[exifData.aperture, exifData.shutterSpeed, exifData.iso ? `ISO${exifData.iso}` : null]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </div>
+              )}
+              {exifData.focalLength && (
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 text-white/60 shrink-0 text-center text-xs">mm</span>
+                  <span>{exifData.focalLength}</span>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
       <div className="flex justify-center gap-1.5 pb-6">
@@ -842,6 +929,7 @@ export default function PostDetailPage() {
           photos={photos}
           startIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
+          exifData={(post as Post & { exif_data?: ExifData | null })?.exif_data}
         />
       )}
 

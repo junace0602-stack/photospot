@@ -612,6 +612,7 @@ export default function CreatePostPage() {
           tripod_note: (tripod === '기타' && tripodNote.trim()) ? tripodNote.trim() : null,
           equipment_text: equipmentText.trim() || null,
           tip: tip.trim() || null,
+          exif_data: exifData,
           visit_date: visitDate || null,
           crowdedness: crowdedness || null,
           parking: parking || null,

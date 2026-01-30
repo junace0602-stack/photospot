@@ -37,6 +37,34 @@ let markerClickHandler: ((placeId: string) => void) | null = null
 
 const SEOUL = { lat: 37.5665, lng: 126.978 }
 
+// localStorage 키
+const USER_POS_KEY = 'photospot_user_position'
+
+// 저장된 위치 불러오기
+function loadSavedPosition(): { lat: number; lng: number } | null {
+  try {
+    const saved = localStorage.getItem(USER_POS_KEY)
+    if (saved) {
+      const pos = JSON.parse(saved)
+      if (typeof pos.lat === 'number' && typeof pos.lng === 'number') {
+        return pos
+      }
+    }
+  } catch {
+    // 파싱 실패 시 무시
+  }
+  return null
+}
+
+// 위치 저장
+function savePosition(lat: number, lng: number) {
+  try {
+    localStorage.setItem(USER_POS_KEY, JSON.stringify({ lat, lng }))
+  } catch {
+    // 저장 실패 시 무시
+  }
+}
+
 const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }> = {
   '일본': { lat: 36.2, lng: 138.3, zoom: 5 },
   '대만': { lat: 23.7, lng: 120.9, zoom: 7 },
@@ -305,7 +333,8 @@ export default function MapPage() {
   const { isFavorited, toggleFavorite } = useFavorites()
 
   const [places, setPlaces] = useState<Place[]>([])
-  const [userPos, setUserPos] = useState(SEOUL)
+  // 저장된 위치가 있으면 사용, 없으면 서울
+  const [userPos, setUserPos] = useState(() => loadSavedPosition() || SEOUL)
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [placeStats, setPlaceStats] = useState<Map<string, PlaceStats>>(
     new Map(),
@@ -537,8 +566,38 @@ export default function MapPage() {
       }
     }
 
-    // GPS 위치 요청 (백그라운드 - 지도 초기화 블로킹 안 함)
-    const requestGPS = () => {
+    // GPS 위치 요청 (저장된 위치가 없을 때만, 앱 시작 시 한 번)
+    const requestInitialGPS = () => {
+      // 이미 저장된 위치가 있으면 GPS 요청 안 함
+      const savedPos = loadSavedPosition()
+      if (savedPos) {
+        // 저장된 위치로 지도 이동 (지도 로딩 후)
+        const checkMap = setInterval(() => {
+          const map = mapInstanceRef.current
+          if (map) {
+            clearInterval(checkMap)
+            map.panTo(savedPos)
+            map.setZoom(11)
+            // 사용자 위치 마커 표시
+            if (!cachedUserMarker) {
+              const dot = document.createElement('div')
+              dot.style.cssText =
+                'width:18px;height:18px;background:#EA580C;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 1px 4px rgba(0,0,0,0.3);'
+              const marker = new google.maps.marker.AdvancedMarkerElement({
+                position: savedPos,
+                map,
+                content: dot,
+                zIndex: 9999,
+              })
+              userLocationMarkerRef.current = marker
+              cachedUserMarker = marker
+            }
+          }
+        }, 100)
+        setTimeout(() => clearInterval(checkMap), 5000)
+        return
+      }
+
       if (!navigator.geolocation) return
 
       navigator.geolocation.getCurrentPosition(
@@ -547,6 +606,7 @@ export default function MapPage() {
           const lat = pos.coords.latitude
           const lng = pos.coords.longitude
           setUserPos({ lat, lng })
+          savePosition(lat, lng) // localStorage에 저장
 
           const map = mapInstanceRef.current
           if (map) {
@@ -573,15 +633,15 @@ export default function MapPage() {
           }
         },
         () => {
-          // GPS 실패 시 서울 유지
+          // GPS 실패 시 저장된 위치 또는 서울 유지
         },
         { enableHighAccuracy: false, timeout: 5000 } // 빠른 응답 우선
       )
     }
 
-    // 지도 초기화와 GPS 요청 병렬 실행
+    // 지도 초기화와 초기 GPS 요청 병렬 실행
     initMap()
-    requestGPS()
+    requestInitialGPS()
 
     return () => {
       mounted = false
@@ -1052,25 +1112,24 @@ export default function MapPage() {
       return
     }
 
-    // 이전 위치가 있으면 먼저 그 위치로 즉시 이동
+    // 현재 저장된 위치가 있으면 먼저 그 위치로 즉시 이동
     const hasCache = userPos.lat !== SEOUL.lat || userPos.lng !== SEOUL.lng
     if (hasCache) {
       map.setCenter(userPos)
       map.setZoom(14)
     }
 
-    // 백그라운드에서 새 위치 가져오기
+    // 새 위치 가져오기 (버튼 클릭 시에만 새로 요청)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
         setUserPos({ lat, lng })
+        savePosition(lat, lng) // localStorage에 새 위치 저장
 
-        // 새 위치로 지도 이동 (캐시 없었거나 위치가 변경된 경우)
-        if (!hasCache || Math.abs(lat - userPos.lat) > 0.001 || Math.abs(lng - userPos.lng) > 0.001) {
-          map.setCenter({ lat, lng })
-          map.setZoom(14)
-        }
+        // 새 위치로 지도 이동
+        map.setCenter({ lat, lng })
+        map.setZoom(14)
 
         // 주황색 점 마커 표시/업데이트
         if (userLocationMarkerRef.current) {
@@ -1099,7 +1158,7 @@ export default function MapPage() {
           }
         }
       },
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }, // 버튼 클릭 시 정확한 위치 요청
     )
   }, [mapReady, userPos])
 
