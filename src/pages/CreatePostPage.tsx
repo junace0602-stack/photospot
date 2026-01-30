@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { uploadImageWithThumbnail, IMAGE_ACCEPT } from '../lib/imageUpload'
 import { moderateText, checkDuplicatePost } from '../lib/moderation'
 import { checkSuspension } from '../lib/penalty'
+import { extractExif, type ExifData } from '../lib/exif'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { searchPlacesAutocomplete, getPlaceDetails, type AutocompleteResult } from '../lib/geocode'
@@ -387,6 +388,7 @@ export default function CreatePostPage() {
     { type: 'text', id: newId(), text: '' },
   ])
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set())
+  const [exifData, setExifData] = useState<ExifData | null>(null)
 
   // Meta state — 기본 (항상 보임)
   const [categories, setCategories] = useState<Set<string>>(new Set())
@@ -484,6 +486,14 @@ export default function CreatePostPage() {
 
     const ids = new Set(entries.map((en) => en.id))
     setUploadingIds((prev) => new Set([...prev, ...ids]))
+
+    // 첫 번째 사진의 EXIF 추출 (아직 없을 때만)
+    const firstFile = entries[0]?.file
+    if (firstFile && !exifData) {
+      extractExif(firstFile).then((data) => {
+        if (data) setExifData(data)
+      })
+    }
 
     entries.forEach(({ file, id }) => {
       uploadImageWithThumbnail(file)
@@ -655,6 +665,7 @@ export default function CreatePostPage() {
           thumbnail_url: firstPhoto?.thumbnailUrl ?? firstPhoto?.url ?? null,
           image_urls: imageUrls,
           is_anonymous: isAnonymous,
+          exif_data: exifData,
         }
         // event_id 컬럼이 DB에 있을 때만 포함
         if (boardType === '사진' && selectedChallengeId) {
