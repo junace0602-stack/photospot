@@ -1100,24 +1100,7 @@ export default function CreatePostPage() {
         </div>
 
         {/* Content editor */}
-        <div className="px-4 py-4 relative">
-          {/* 가이드 텍스트 (비어있을 때만 표시) */}
-          {!isEditMode && !title.trim() && blocks.every(b => b.type === 'text' && !b.text.trim()) && (
-            <div className="absolute inset-0 px-4 py-4 pointer-events-none">
-              <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-line">
-                {`📋 커뮤니티 가이드
-
-✓ 출사지 정보 공유 및 리뷰
-✓ 촬영한 사진 공유
-✓ 카메라/장비 관련 질문 및 팁
-✓ 출사 동행 모집
-
-✗ 광고/홍보, 스팸/도배
-✗ 정치, 일베/극단적 표현
-✗ 지역/인종 비하, 고인 모독`}
-              </div>
-            </div>
-          )}
+        <div className="px-4 py-4">
           {blocks.map((block) =>
             block.type === 'photo' ? (
               <div key={block.id} className="relative mb-3">
@@ -1147,8 +1130,18 @@ export default function CreatePostPage() {
                 key={block.id}
                 value={block.text}
                 onChange={(e) => updateText(block.id, e.target.value)}
-                placeholder="내용을 입력하세요"
-                className="w-full min-h-[120px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 bg-transparent relative z-10"
+                placeholder={!isEditMode ? `내용을 입력하세요
+
+📋 커뮤니티 가이드
+✓ 출사지 정보 공유 및 리뷰
+✓ 촬영한 사진 공유
+✓ 카메라/장비 관련 질문 및 팁
+✓ 출사 동행 모집
+
+✗ 광고/홍보, 스팸/도배
+✗ 정치, 일베/극단적 표현
+✗ 지역/인종 비하, 고인 모독` : '내용을 입력하세요'}
+                className="w-full min-h-[200px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 placeholder:text-gray-400"
               />
             ),
           )}
