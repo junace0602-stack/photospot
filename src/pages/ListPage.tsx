@@ -411,10 +411,10 @@ export default function ListPage() {
         .limit(100)
 
       if (selectedCamera) {
-        communityQuery = communityQuery.eq('exif_data->camera', selectedCamera)
+        communityQuery = communityQuery.eq('exif_data->>camera', selectedCamera)
       }
       if (selectedLens) {
-        communityQuery = communityQuery.eq('exif_data->lens', selectedLens)
+        communityQuery = communityQuery.eq('exif_data->>lens', selectedLens)
       }
 
       // posts 검색 (place_id 포함)
@@ -425,10 +425,10 @@ export default function ListPage() {
         .limit(100)
 
       if (selectedCamera) {
-        postsQuery = postsQuery.eq('exif_data->camera', selectedCamera)
+        postsQuery = postsQuery.eq('exif_data->>camera', selectedCamera)
       }
       if (selectedLens) {
-        postsQuery = postsQuery.eq('exif_data->lens', selectedLens)
+        postsQuery = postsQuery.eq('exif_data->>lens', selectedLens)
       }
 
       const [communityRes, postsRes] = await Promise.all([communityQuery, postsQuery])
