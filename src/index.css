@@ -52,6 +52,26 @@ html, body, #root {
   height: 100%;
 }
 
+/* ── iOS Safe Area 대응 ─────────────────────────────── */
+
+/* Safe area inset 유틸리티 클래스 */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.top-safe {
+  top: env(safe-area-inset-top, 0px);
+}
+
+/* top-3 + safe area */
+.top-3-safe {
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
+}
+
 body {
   background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);

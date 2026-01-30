@@ -109,7 +109,7 @@ function AppLayout() {
   const hideNav = pathname === '/posts/new' || pathname.endsWith('/posts/new')
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen pt-safe">
       <main className="flex-1 min-h-0">
         <Suspense fallback={<PageLoader />}>
           <Routes>

@@ -25,7 +25,7 @@ export default function BottomNav() {
   }, [user])
 
   return (
-    <nav className="shrink-0 bg-white border-t border-gray-200">
+    <nav className="shrink-0 bg-white border-t border-gray-200 pb-safe">
       <ul className="flex justify-around">
         {tabs.map(({ to, label, icon: Icon }) => (
           <li key={to} className="flex-1">
