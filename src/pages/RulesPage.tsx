@@ -75,7 +75,7 @@ export default function RulesPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-red-500 mt-0.5">-</span>
-                <span><strong>일베/극단적 커뮤니티 용어</strong>: 특정 사이트의 혐오 표현</span>
+                <span><strong>극단적 커뮤니티 용어</strong>: 특정 사이트의 혐오 표현</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-red-500 mt-0.5">-</span>
