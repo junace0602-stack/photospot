@@ -53,10 +53,10 @@ export default function SpotPostsPage() {
 
     const load = async () => {
       const [placeRes, postsRes] = await Promise.all([
-        supabase.from('places').select('id, name, lat, lng').eq('id', id).single(),
+        supabase.from('places').select('*').eq('id', id).maybeSingle(),
         supabase
           .from('posts')
-          .select('id, title, thumbnail_url, content_blocks, author_nickname, likes_count, comment_count, categories, created_at')
+          .select('*')
           .eq('place_id', id)
           .order('created_at', { ascending: false })
           .limit(100),

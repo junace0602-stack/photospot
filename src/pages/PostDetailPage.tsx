@@ -178,8 +178,8 @@ export default function PostDetailPage() {
     const load = async () => {
       // 기본 쿼리들
       const [postRes, placeRes, commentsRes, likesCountRes] = await Promise.all([
-        supabase.from('posts').select('id, place_id, user_id, author_nickname, title, content_blocks, thumbnail_url, categories, time_slots, tripod, tripod_note, equipment_text, tip, visit_date, crowdedness, parking, parking_note, fee_type, fee_amount, restroom, safety, reservation, likes_count, comment_count, view_count, is_anonymous, created_at').eq('id', postId).single(),
-        supabase.from('places').select('name').eq('id', spotId).single(),
+        supabase.from('posts').select('*').eq('id', postId).maybeSingle(),
+        supabase.from('places').select('name').eq('id', spotId).maybeSingle(),
         supabase
           .from('comments')
           .select('id, post_id, user_id, author_nickname, content, is_anonymous, created_at')
@@ -191,6 +191,11 @@ export default function PostDetailPage() {
           .select('id', { count: 'exact', head: true })
           .eq('post_id', postId),
       ])
+
+      // 디버깅: 쿼리 에러 확인
+      if (postRes.error) {
+        console.error('Post query error:', postRes.error)
+      }
 
       if (postRes.data) {
         setPost(postRes.data as Post)
