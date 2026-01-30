@@ -25,8 +25,7 @@ import { supabase } from '../lib/supabase'
 
 /* ── 후원 링크 ─────────────────────────────────────── */
 
-const KAKAO_PAY_LINK = '' // 카카오페이 후원 링크
-const TOSS_LINK = '' // 토스 후원 링크
+const KAKAO_PAY_LINK = 'https://qr.kakaopay.com/FCiXkL947'
 
 /* ── 통계 타입 ─────────────────────────────────────── */
 
@@ -559,24 +558,14 @@ function LoggedInView() {
               <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
                 {'안녕하세요, 출사지도 개발자입니다.\n\n출사지도는 사용자 편의를 위해 광고나 유료 서비스 없이 무료로 운영하고 있습니다.\n\n후원금은 서버비 및 앱 개발비에 사용될 예정입니다.'}
               </p>
-              <div className="flex gap-3 mt-4">
+              <div className="mt-4">
                 <a
-                  href={KAKAO_PAY_LINK || '#'}
+                  href={KAKAO_PAY_LINK}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={(e) => !KAKAO_PAY_LINK && e.preventDefault()}
-                  className="flex-1 py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-xl text-sm font-semibold text-center transition-colors"
+                  className="block w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-xl text-sm font-semibold text-center transition-colors"
                 >
-                  💛 카카오페이
-                </a>
-                <a
-                  href={TOSS_LINK || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => !TOSS_LINK && e.preventDefault()}
-                  className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold text-center transition-colors"
-                >
-                  💙 토스
+                  💛 카카오페이로 후원하기
                 </a>
               </div>
             </div>
