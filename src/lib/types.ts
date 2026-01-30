@@ -7,6 +7,8 @@ export interface Place {
   country?: string
   is_domestic?: boolean
   address?: string
+  region?: string  // 시/도 (서울, 부산, 경기 등)
+  district?: string  // 구/군/시 (동작구, 성남시 등)
 }
 
 export interface ContentBlock {

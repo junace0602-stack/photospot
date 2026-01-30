@@ -8,7 +8,7 @@ import { checkSuspension } from '../lib/penalty'
 import { extractExif, type ExifData } from '../lib/exif'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { searchPlacesAutocomplete, getPlaceDetails, type AutocompleteResult } from '../lib/geocode'
+import { searchPlacesAutocomplete, getPlaceDetails, reverseGeocode, type AutocompleteResult } from '../lib/geocode'
 import { loadGoogleMaps } from '../lib/googleMaps'
 import type { Post } from '../lib/types'
 
@@ -185,15 +185,29 @@ export default function CreatePostPage() {
         return
       }
 
+      const lat = parseFloat(queryLat)
+      const lng = parseFloat(queryLng)
+
+      // 역지오코딩으로 주소 정보 조회
+      const geoResult = await reverseGeocode(lat, lng)
+
+      const placeRow: Record<string, unknown> = {
+        name: queryName,
+        lat,
+        lng,
+        is_domestic: true,
+      }
+      // 주소 정보 추가
+      if (geoResult) {
+        if (geoResult.address) placeRow.address = geoResult.address
+        if (geoResult.region) placeRow.region = geoResult.region
+        if (geoResult.district) placeRow.district = geoResult.district
+      }
+
       // 새 장소 등록
       const { data, error } = await supabase
         .from('places')
-        .insert({
-          name: queryName,
-          lat: parseFloat(queryLat),
-          lng: parseFloat(queryLng),
-          is_domestic: true,
-        })
+        .insert(placeRow)
         .select('id, name')
         .single()
 
@@ -319,6 +333,9 @@ export default function CreatePostPage() {
       return
     }
 
+    // 역지오코딩으로 주소 정보 조회
+    const geoResult = await reverseGeocode(detail.lat, detail.lng)
+
     // 새 출사지로 등록
     const placeRow: Record<string, unknown> = {
       name: detail.name,
@@ -328,6 +345,15 @@ export default function CreatePostPage() {
     }
     if (!isDomestic && detail.country) {
       placeRow.country = detail.country
+    }
+    // 주소 정보 추가
+    if (geoResult) {
+      if (geoResult.address) placeRow.address = geoResult.address
+      if (geoResult.region) placeRow.region = geoResult.region
+      if (geoResult.district) placeRow.district = geoResult.district
+    } else if (detail.address) {
+      // 역지오코딩 실패 시 Google Places 주소 사용
+      placeRow.address = detail.address
     }
 
     const { data, error } = await supabase
@@ -363,9 +389,25 @@ export default function CreatePostPage() {
     if (!newPlaceName.trim() || savingPlace) return
     setSavingPlace(true)
 
+    // 역지오코딩으로 주소 정보 조회
+    const geoResult = await reverseGeocode(newPlaceLat, newPlaceLng)
+
+    const placeRow: Record<string, unknown> = {
+      name: newPlaceName.trim(),
+      lat: newPlaceLat,
+      lng: newPlaceLng,
+      is_domestic: isDomestic,
+    }
+    // 주소 정보 추가
+    if (geoResult) {
+      if (geoResult.address) placeRow.address = geoResult.address
+      if (geoResult.region) placeRow.region = geoResult.region
+      if (geoResult.district) placeRow.district = geoResult.district
+    }
+
     const { data, error } = await supabase
       .from('places')
-      .insert({ name: newPlaceName.trim(), lat: newPlaceLat, lng: newPlaceLng, is_domestic: isDomestic })
+      .insert(placeRow)
       .select('id, name')
       .single()
 

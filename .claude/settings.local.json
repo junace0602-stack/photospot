@@ -30,7 +30,8 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(cmd //c \"taskkill /PID 60368 /F\")",
-      "Bash(cmd //c \"taskkill /PID 89124 /F\")"
+      "Bash(cmd //c \"taskkill /PID 89124 /F\")",
+      "Bash(npm run backfill:addresses:*)"
     ]
   }
 }

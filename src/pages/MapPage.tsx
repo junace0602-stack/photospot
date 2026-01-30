@@ -605,7 +605,7 @@ export default function MapPage() {
 
     // 데이터 fetch 시작 (지도 로딩과 병렬)
     const dataPromise = Promise.all([
-      supabase.from('places').select('id, name, lat, lng, is_domestic, country, address'),
+      supabase.from('places').select('id, name, lat, lng, is_domestic, country, address, region, district'),
       supabase
         .from('posts')
         .select('place_id, thumbnail_url, likes_count, created_at')
@@ -848,27 +848,35 @@ export default function MapPage() {
       items = items.filter((p) =>
         p.is_domestic !== false && (!p.country || p.country === '한국'),
       )
-      // 시/도 필터 (주소 기반 우선, 없으면 좌표 기반)
+      // 시/도 필터 (region 필드 우선 → 주소 파싱 → 좌표 기반)
       if (provinceFilter) {
         items = items.filter((p) => {
-          // 1. 주소에서 시/도 추출 시도
+          // 1. region 필드가 있으면 직접 비교
+          if (p.region) {
+            return p.region === provinceFilter
+          }
+          // 2. 주소에서 시/도 추출 시도
           const provinceFromAddr = getProvinceFromAddress(p.address)
           if (provinceFromAddr) {
             return provinceFromAddr === provinceFilter
           }
-          // 2. 주소가 없으면 좌표 기반 판별
+          // 3. 주소가 없으면 좌표 기반 판별
           const provinceFromCoords = getProvinceFromCoords(p.lat, p.lng)
           return provinceFromCoords === provinceFilter
         })
         // 구/군 필터 (전체가 아닌 경우에만)
         if (districtFilter && districtFilter !== '전체') {
           items = items.filter((p) => {
-            // 1. 주소에서 구/군 추출 시도
+            // 1. district 필드가 있으면 직접 비교
+            if (p.district) {
+              return p.district === districtFilter
+            }
+            // 2. 주소에서 구/군 추출 시도
             const districtFromAddr = getDistrictFromAddress(p.address)
             if (districtFromAddr) {
               return districtFromAddr === districtFilter
             }
-            // 2. 주소가 없으면 이름에서 구/군 매칭 시도
+            // 3. 주소가 없으면 이름에서 구/군 매칭 시도
             const districtName = districtFilter.replace('시', '').replace('군', '').replace('구', '')
             return p.name.includes(districtName)
           })
