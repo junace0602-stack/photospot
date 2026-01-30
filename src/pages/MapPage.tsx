@@ -373,6 +373,11 @@ export default function MapPage() {
   const [bannerPosts, setBannerPosts] = useState<BannerPost[]>([])
   const [bannerPostsLoading, setBannerPostsLoading] = useState(false)
 
+  // 핀 모드
+  const [pinMode, setPinMode] = useState(false)
+  const [pinPosition, setPinPosition] = useState<{ lat: number; lng: number } | null>(null)
+  const pinMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null)
+
   const sheetState: 'peek' | 'half' | 'full' =
     snappedTop > 75 ? 'peek' : snappedTop > 25 ? 'half' : 'full'
 
@@ -465,7 +470,6 @@ export default function MapPage() {
           setSnappedTop(87)
           setSelectedPlace(null)
         }
-        map.addListener('click', minimizeSheet)
         map.addListener('dragstart', minimizeSheet)
 
         setMapReady(true)
@@ -926,6 +930,116 @@ export default function MapPage() {
     setSnappedTop((prev) => (prev > 50 ? 50 : prev))
   }, [])
 
+  // 핀 모드 토글
+  const togglePinMode = useCallback(() => {
+    if (pinMode) {
+      // 핀 모드 종료
+      setPinMode(false)
+      setPinPosition(null)
+      if (pinMarkerRef.current) {
+        pinMarkerRef.current.map = null
+        pinMarkerRef.current = null
+      }
+    } else {
+      // 핀 모드 시작
+      setPinMode(true)
+      toast('지도를 터치해서 핀을 찍으세요', { icon: '📍' })
+      // 배너 닫기
+      closeBanner()
+    }
+  }, [pinMode, closeBanner])
+
+  // 핀 찍기 (지도 클릭 시)
+  const placePin = useCallback((lat: number, lng: number) => {
+    setPinPosition({ lat, lng })
+
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    // 기존 핀 마커 제거
+    if (pinMarkerRef.current) {
+      pinMarkerRef.current.map = null
+    }
+
+    // 새 핀 마커 생성 (빨간색)
+    const pinContent = document.createElement('div')
+    pinContent.innerHTML = `
+      <div style="width:36px;height:36px;background:#DC2626;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      </div>
+    `
+    pinMarkerRef.current = new google.maps.marker.AdvancedMarkerElement({
+      map,
+      position: { lat, lng },
+      content: pinContent,
+      zIndex: 10000,
+    })
+  }, [])
+
+  // 핀 모드 종료 (목록 X 버튼)
+  const closePinMode = useCallback(() => {
+    setPinMode(false)
+    setPinPosition(null)
+    if (pinMarkerRef.current) {
+      pinMarkerRef.current.map = null
+      pinMarkerRef.current = null
+    }
+  }, [])
+
+  // 핀 위치 기준 주변 출사지 (최대 10개, 가까운 순)
+  const nearbyPlaces = useMemo(() => {
+    if (!pinPosition) return []
+
+    return places
+      .map((p) => ({
+        ...p,
+        distance: getDistanceKm(pinPosition.lat, pinPosition.lng, p.lat, p.lng),
+      }))
+      .filter((p) => {
+        // 국내/해외 필터 적용
+        const isDomestic = p.is_domestic !== false && (!p.country || p.country === '한국')
+        if (region === 'domestic') return isDomestic
+        return !isDomestic
+      })
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10)
+  }, [pinPosition, places, region])
+
+  // 주변 출사지 클릭 → 배너 표시
+  const handleNearbyPlaceClick = useCallback((place: Place & { distance: number }) => {
+    // 핀 모드 종료
+    closePinMode()
+    // 배너 표시
+    handlePlaceClick(place)
+    // 지도 이동
+    const map = mapInstanceRef.current
+    if (map) {
+      map.panTo({ lat: place.lat, lng: place.lng })
+      map.setZoom(15)
+    }
+  }, [closePinMode, handlePlaceClick])
+
+  // 핀 모드 지도 클릭 리스너
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    const listener = map.addListener('click', (e: google.maps.MapMouseEvent) => {
+      if (pinMode && e.latLng) {
+        placePin(e.latLng.lat(), e.latLng.lng())
+      } else {
+        // 핀 모드 아닐 때는 시트 접기
+        skipTransitionRef.current = true
+        setSnappedTop(87)
+        setSelectedPlace(null)
+      }
+    })
+
+    return () => {
+      google.maps.event.removeListener(listener)
+    }
+  }, [pinMode, placePin])
+
   const handleLocateMe = useCallback(() => {
     if (!navigator.geolocation) {
       toast.error('이 브라우저에서는 위치 기능을 지원하지 않습니다.')
@@ -1148,15 +1262,29 @@ export default function MapPage() {
         </button>
       </div>
 
-      {/* 나의 위치 버튼 */}
-      <button
-        type="button"
-        onClick={handleLocateMe}
-        className="absolute top-3 right-3 z-10 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center hover:bg-gray-50 active:bg-gray-100"
-        aria-label="나의 위치"
-      >
-        <Crosshair className="w-5 h-5 text-orange-600" />
-      </button>
+      {/* 핀 버튼 + 나의 위치 버튼 */}
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={togglePinMode}
+          className={`w-10 h-10 rounded-full shadow-md flex items-center justify-center transition-colors ${
+            pinMode
+              ? 'bg-red-500 text-white'
+              : 'bg-white text-red-500 hover:bg-gray-50 active:bg-gray-100'
+          }`}
+          aria-label="핀 모드"
+        >
+          <MapPin className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onClick={handleLocateMe}
+          className="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center hover:bg-gray-50 active:bg-gray-100"
+          aria-label="나의 위치"
+        >
+          <Crosshair className="w-5 h-5 text-orange-600" />
+        </button>
+      </div>
 
       {/* 장소 카드 (마커 클릭, peek 상태에서만) */}
       {selectedPlace &&
@@ -1480,8 +1608,78 @@ export default function MapPage() {
         )}
       </div>
 
+      {/* 핀 주변 출사지 목록 */}
+      {pinMode && pinPosition && (
+        <div className="absolute bottom-0 left-0 right-0 z-30 p-4 pb-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden max-h-[50vh] flex flex-col">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-red-500" />
+                <span className="text-base font-bold text-gray-900">주변 출사지</span>
+              </div>
+              <button
+                type="button"
+                onClick={closePinMode}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 목록 */}
+            <div className="flex-1 overflow-y-auto">
+              {nearbyPlaces.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">
+                  주변에 등록된 출사지가 없습니다
+                </p>
+              ) : (
+                nearbyPlaces.map((place) => {
+                  const stats = placeStats.get(place.id)
+                  return (
+                    <button
+                      key={place.id}
+                      type="button"
+                      onClick={() => handleNearbyPlaceClick(place)}
+                      className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      {/* 썸네일 */}
+                      {stats?.thumbnail ? (
+                        <img
+                          src={stats.thumbnail}
+                          alt={place.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-12 h-12 rounded-lg object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                          <MapPin className="w-5 h-5 text-gray-300" />
+                        </div>
+                      )}
+                      {/* 정보 */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {place.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                          <span>{formatDistance(place.distance)}</span>
+                          <span>·</span>
+                          <span>글 {stats?.postCount ?? 0}개</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 하단 장소 배너 (중간 크기) */}
-      {bannerPlace && (
+      {bannerPlace && !pinMode && (
         <div className="absolute bottom-0 left-0 right-0 z-30 p-4 pb-6">
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
             {/* 상단: 장소 정보 (클릭 시 상세 페이지 이동) */}
