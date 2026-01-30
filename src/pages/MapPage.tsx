@@ -1002,7 +1002,7 @@ export default function MapPage() {
         return !isDomestic
       })
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 10)
+      .slice(0, 20)
   }, [pinPosition, places, region])
 
   // 주변 출사지 클릭 → 배너 표시
