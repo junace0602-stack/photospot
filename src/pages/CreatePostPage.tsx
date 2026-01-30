@@ -16,8 +16,8 @@ type PhotoBlock = { type: 'photo'; id: string; url: string; thumbnailUrl?: strin
 type TextBlock = { type: 'text'; id: string; text: string }
 type ContentBlock = PhotoBlock | TextBlock
 
-type BoardType = '출사지' | '일반' | '사진' | '질문' | '장비'
-const BOARD_TYPES: BoardType[] = ['출사지', '일반', '사진', '질문', '장비']
+type BoardType = '출사지' | '일반' | '사진' | '장비'
+const BOARD_TYPES: BoardType[] = ['출사지', '일반', '사진', '장비']
 
 let blockId = 0
 const newId = () => String(++blockId)
@@ -108,6 +108,7 @@ export default function CreatePostPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [submitting, setSubmitting] = useState(false)
   const [isAnonymous, setIsAnonymous] = useState(false)
+  const [isQuestion, setIsQuestion] = useState(false)
 
   // URL 쿼리 파라미터
   const searchParams = new URLSearchParams(location.search)
@@ -532,8 +533,11 @@ export default function CreatePostPage() {
   const isUploading = uploadingIds.size > 0
   const hasTitle = title.trim().length > 0
 
+  // 사진 필수 여부: 출사지 또는 사진 탭
+  const requiresPhoto = isSpot || boardType === '사진'
+
   const canSubmit = isSpot
-    ? !!spotId && hasTitle && hasPhotos && !isUploading && !submitting
+    ? !!spotId && hasTitle && !isUploading && !submitting
     : hasTitle && !isUploading && !submitting
 
   const handleAddPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -638,6 +642,13 @@ export default function CreatePostPage() {
 
   const handleSubmit = async () => {
     if (!canSubmit || !user || submitting) return
+
+    // 사진 필수 체크 (출사지/사진 탭)
+    if (requiresPhoto && !hasPhotos) {
+      toast.error('사진을 1장 이상 추가해주세요')
+      return
+    }
+
     setSubmitting(true)
 
     try {
@@ -731,7 +742,7 @@ export default function CreatePostPage() {
           navigate(`/spots/${spotId}`, { replace: true })
         }
       } else {
-        // 일반/사진/질문 → community_posts 테이블
+        // 일반/사진/장비 → community_posts 테이블
         const textContent = blocks
           .filter((b): b is TextBlock => b.type === 'text')
           .map((b) => b.text)
@@ -743,15 +754,19 @@ export default function CreatePostPage() {
 
         const firstPhoto = photoBlocks[0] ?? null
 
+        // 질문글은 제목 앞에 [질문] 태그 추가
+        const finalTitle = isQuestion ? `[질문] ${title.trim()}` : title.trim()
+
         const row: Record<string, unknown> = {
           user_id: user.id,
           author_nickname: profile?.nickname ?? '익명',
           section: boardType,
-          title: title.trim(),
+          title: finalTitle,
           content: textContent,
           thumbnail_url: firstPhoto?.thumbnailUrl ?? firstPhoto?.url ?? null,
           image_urls: imageUrls,
           is_anonymous: isAnonymous,
+          is_question: isQuestion,
           exif_data: exifData,
         }
         // event_id 컬럼이 DB에 있을 때만 포함
@@ -840,6 +855,18 @@ export default function CreatePostPage() {
               <Link to="/rules" className="underline font-medium">
                 규칙 보기
               </Link>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 질문글 경고 배너 */}
+      {isQuestion && (
+        <div className="px-4 py-2 bg-orange-50 border-b border-orange-100">
+          <div className="flex items-center gap-2 text-orange-700">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <p className="text-xs font-medium">
+              질문글은 삭제나 수정이 불가능합니다
             </p>
           </div>
         </div>
@@ -1087,15 +1114,6 @@ export default function CreatePostPage() {
           />
         </div>
 
-        {/* 질문: 경고 안내 */}
-        {boardType === '질문' && (
-          <div className="mx-4 mt-3 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-700 font-medium">
-              질문 글은 다른 사람들을 위해 작성 후 수정·삭제할 수 없습니다.
-            </p>
-          </div>
-        )}
-
         {/* Content editor */}
         <div className="px-4 py-4">
           {blocks.map((block) =>
@@ -1325,12 +1343,18 @@ export default function CreatePostPage() {
             onChange={(e) => setIsAnonymous(e.target.checked)}
             className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
           />
-          익명으로 작성
+          익명
         </label>
-        {isSpot && !hasPhotos && (
-          <span className="ml-auto text-xs text-red-400">
-            사진을 1장 이상 추가하세요
-          </span>
+        {!isSpot && (
+          <label className="ml-3 flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isQuestion}
+              onChange={(e) => setIsQuestion(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+            />
+            질문
+          </label>
         )}
       </div>
 

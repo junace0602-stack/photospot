@@ -81,7 +81,7 @@ interface ListItem {
 
 /* ── 상수 ─────────────────────────────────────────── */
 
-const SECTIONS = ['전체', '일반', '사진', '질문', '챌린지', '장비'] as const
+const SECTIONS = ['전체', '일반', '사진', '장비', '챌린지'] as const
 type Section = (typeof SECTIONS)[number]
 
 const SORT_OPTIONS = ['최신순', '인기글'] as const
