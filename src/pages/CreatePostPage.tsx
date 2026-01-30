@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -10,6 +10,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { searchPlacesAutocomplete, getPlaceDetails, reverseGeocode, type AutocompleteResult } from '../lib/geocode'
 import { loadGoogleMaps } from '../lib/googleMaps'
+import { extractYouTubeUrls } from '../lib/youtube'
+import { YouTubeEmbedList } from '../components/YouTubeEmbed'
 import type { Post } from '../lib/types'
 
 type PhotoBlock = { type: 'photo'; id: string; url: string; thumbnailUrl?: string }
@@ -433,6 +435,25 @@ export default function CreatePostPage() {
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set())
   const [exifData, setExifData] = useState<ExifData | null>(null)
 
+  // YouTube 임베드 관련
+  const [excludedYouTubeIds, setExcludedYouTubeIds] = useState<Set<string>>(new Set())
+
+  // 텍스트 블록에서 유튜브 URL 추출
+  const detectedYouTubeVideos = useMemo(() => {
+    const allText = blocks
+      .filter((b): b is TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n')
+    const videos = extractYouTubeUrls(allText).filter((v) => !excludedYouTubeIds.has(v.videoId))
+    console.log('[YouTube Debug] allText:', allText)
+    console.log('[YouTube Debug] detected videos:', videos)
+    return videos
+  }, [blocks, excludedYouTubeIds])
+
+  const handleRemoveYouTube = (videoId: string) => {
+    setExcludedYouTubeIds((prev) => new Set([...prev, videoId]))
+  }
+
   // Meta state — 기본 (항상 보임)
   const [categories, setCategories] = useState<Set<string>>(new Set())
   const [timeSlots, setTimeSlots] = useState<Set<string>>(new Set())
@@ -733,6 +754,9 @@ export default function CreatePostPage() {
 
         const firstPhoto = blocks.find((b) => b.type === 'photo') as PhotoBlock | undefined
 
+        // YouTube URL 추출 (제외된 것 제외)
+        const youtubeUrls = detectedYouTubeVideos.map((v) => v.url)
+
         const postData = {
           title: title.trim(),
           content_blocks: contentBlocks,
@@ -751,6 +775,7 @@ export default function CreatePostPage() {
           restroom: isDomestic ? (restroom || null) : null,
           safety: !isDomestic ? (safety || null) : null,
           reservation: !isDomestic ? (reservation || null) : null,
+          youtube_urls: youtubeUrls.length > 0 ? youtubeUrls : null,
           is_anonymous: isAnonymous,
           is_domestic: isDomestic,
         }
@@ -799,6 +824,9 @@ export default function CreatePostPage() {
         // 질문글은 제목 앞에 [질문] 태그 추가
         const finalTitle = isQuestion ? `[질문] ${title.trim()}` : title.trim()
 
+        // YouTube URL 추출 (제외된 것 제외)
+        const communityYoutubeUrls = detectedYouTubeVideos.map((v) => v.url)
+
         const row: Record<string, unknown> = {
           user_id: user.id,
           author_nickname: profile?.nickname ?? '익명',
@@ -810,6 +838,7 @@ export default function CreatePostPage() {
           is_anonymous: isAnonymous,
           is_question: isQuestion,
           exif_data: exifData,
+          youtube_urls: communityYoutubeUrls.length > 0 ? communityYoutubeUrls : null,
         }
         // event_id 컬럼이 DB에 있을 때만 포함
         if (boardType === '사진' && selectedChallengeId) {
@@ -1186,6 +1215,18 @@ export default function CreatePostPage() {
                 className="w-full min-h-[300px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 placeholder:text-gray-400"
               />
             ),
+          )}
+
+          {/* YouTube 임베드 미리보기 */}
+          {detectedYouTubeVideos.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs text-gray-500 mb-2">YouTube 동영상 ({detectedYouTubeVideos.length}개)</p>
+              <YouTubeEmbedList
+                videos={detectedYouTubeVideos}
+                preview
+                onRemove={handleRemoveYouTube}
+              />
+            </div>
           )}
         </div>
 

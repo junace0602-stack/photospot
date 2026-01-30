@@ -68,6 +68,11 @@ interface ReverseGeocodeResult {
 async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult | null> {
   try {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}&language=ko`
+
+    // 디버깅: API 키와 URL 출력
+    console.log('  [DEBUG] API Key:', GOOGLE_API_KEY?.substring(0, 10) + '...')
+    console.log('  [DEBUG] Request URL:', url.replace(GOOGLE_API_KEY!, '***API_KEY***'))
+
     const res = await fetch(url)
 
     if (!res.ok) {
@@ -76,6 +81,12 @@ async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeR
     }
 
     const data = await res.json()
+
+    // 디버깅: 전체 응답 출력
+    console.log('  [DEBUG] Response status:', data.status)
+    if (data.error_message) {
+      console.log('  [DEBUG] Error message:', data.error_message)
+    }
 
     if (data.status !== 'OK' || !data.results?.length) {
       console.warn('Geocoding no results:', data.status)

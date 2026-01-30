@@ -40,6 +40,7 @@ export interface Post {
   restroom: string | null
   safety: string | null
   reservation: string | null
+  youtube_urls: string[] | null
   likes_count: number
   comment_count: number
   view_count: number

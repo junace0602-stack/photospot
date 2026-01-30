@@ -10,6 +10,8 @@ import { hasExifData, type ExifData } from '../lib/exif'
 import { notifyComment, notifyPopular } from '../lib/notifications'
 import { useAuth } from '../contexts/AuthContext'
 import { useBlockedUsers } from '../hooks/useBlockedUsers'
+import { extractYouTubeUrls } from '../lib/youtube'
+import YouTubeEmbed from '../components/YouTubeEmbed'
 import type { Post, ContentBlock, Comment } from '../lib/types'
 import { displayNameInPost, buildAnonMap } from '../lib/displayName'
 import {
@@ -618,6 +620,27 @@ export default function PostDetailPage() {
   const blocks: ContentBlock[] = post.content_blocks
   const photos = blocks.filter((b) => b.type === 'photo').map((b) => b.url!)
 
+  // 본문에서 YouTube URL 추출
+  const youtubeVideos = useMemo(() => {
+    console.log('[PostDetail YouTube] post.youtube_urls:', post.youtube_urls)
+    console.log('[PostDetail YouTube] blocks:', blocks)
+
+    // youtube_urls 필드가 있으면 그것 사용, 없으면 본문에서 추출
+    if (post.youtube_urls && post.youtube_urls.length > 0) {
+      const videos = extractYouTubeUrls(post.youtube_urls.join(' '))
+      console.log('[PostDetail YouTube] from youtube_urls field:', videos)
+      return videos
+    }
+    const allText = blocks
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text ?? '')
+      .join('\n')
+    console.log('[PostDetail YouTube] allText from blocks:', allText)
+    const videos = extractYouTubeUrls(allText)
+    console.log('[PostDetail YouTube] extracted videos:', videos)
+    return videos
+  }, [post.youtube_urls, blocks])
+
   // Build meta rows
   const metaRows: { icon: typeof Car; label: string; value: string }[] = []
   if (post.categories.length > 0)
@@ -785,6 +808,15 @@ export default function PostDetailPage() {
                 </p>
               )
             })}
+
+            {/* YouTube 임베드 */}
+            {youtubeVideos.length > 0 && (
+              <div className="mt-2">
+                {youtubeVideos.map((video) => (
+                  <YouTubeEmbed key={video.videoId} videoId={video.videoId} />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Meta info */}

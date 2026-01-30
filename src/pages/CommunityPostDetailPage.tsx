@@ -52,6 +52,7 @@ interface CommunityPost {
   created_at: string
   event_id: string | null
   exif_data: ExifData | null
+  youtube_urls: string[] | null
 }
 
 interface CommunityComment {
@@ -386,7 +387,7 @@ export default function CommunityPostDetailPage() {
     const load = async () => {
       // 기본 쿼리들
       const [postRes, commentsRes, likesCountRes] = await Promise.all([
-        supabase.from('community_posts').select('id, user_id, author_nickname, section, title, content, thumbnail_url, image_urls, price, sold, likes_count, comment_count, view_count, is_anonymous, created_at, event_id, exif_data').eq('id', postId).single(),
+        supabase.from('community_posts').select('id, user_id, author_nickname, section, title, content, thumbnail_url, image_urls, price, sold, likes_count, comment_count, view_count, is_anonymous, created_at, event_id, exif_data, youtube_urls').eq('id', postId).single(),
         supabase
           .from('community_comments')
           .select('id, community_post_id, user_id, author_nickname, content, is_anonymous, created_at')
@@ -669,6 +670,21 @@ export default function CommunityPostDetailPage() {
 
   const photos = post.image_urls ?? []
 
+  // YouTube 디버깅
+  console.log('[YouTube] 컴포넌트 렌더링됨')
+  console.log('[YouTube] post.content:', post.content)
+
+  // YouTube URL 추출
+  const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/g
+  const youtubeMatches: string[] = []
+  let ytMatch
+  while ((ytMatch = youtubeRegex.exec(post.content ?? '')) !== null) {
+    if (!youtubeMatches.includes(ytMatch[1])) {
+      youtubeMatches.push(ytMatch[1])
+    }
+  }
+  console.log('[YouTube] matches:', youtubeMatches)
+
   return (
     <>
       <div className="flex flex-col h-full bg-white">
@@ -762,6 +778,20 @@ export default function CommunityPostDetailPage() {
                 {post.content}
               </p>
             )}
+
+            {/* YouTube 임베드 */}
+            {youtubeMatches.length > 0 && youtubeMatches.map((videoId) => (
+              <div key={videoId} className="relative w-full aspect-video rounded-xl overflow-hidden bg-black mb-3">
+                <iframe
+                  src={`https://www.youtube.com/embed/${videoId}`}
+                  title="YouTube video"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 w-full h-full"
+                />
+              </div>
+            ))}
+
             {photos.map((url, i) => (
               <button
                 key={i}
