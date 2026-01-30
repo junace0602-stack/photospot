@@ -857,60 +857,6 @@ export default function MapPage() {
 
   const isCountrySearching = region === 'international' && !countryFilter && countrySearch.trim().length > 0
 
-  // 시/도별 출사지 통계
-  const provinceStats = useMemo(() => {
-    const stats = new Map<KoreaProvince, number>()
-    places.forEach((p) => {
-      if (p.is_domestic) {
-        const province = getProvinceFromCoords(p.lat, p.lng)
-        if (province) {
-          stats.set(province, (stats.get(province) ?? 0) + 1)
-        }
-      }
-    })
-    return stats
-  }, [places])
-
-  // 구/군별 출사지 통계 (선택된 시/도 내)
-  const districtStats = useMemo(() => {
-    const stats = new Map<string, number>()
-    if (!provinceFilter) return stats
-    places.forEach((p) => {
-      if (p.is_domestic) {
-        const province = getProvinceFromCoords(p.lat, p.lng)
-        if (province === provinceFilter) {
-          // 구/군은 좌표만으로 정확히 판별하기 어려우므로, 출사지 이름에서 추출 시도
-          const districts = KOREA_DISTRICTS[provinceFilter]
-          for (const district of districts) {
-            if (p.name.includes(district.replace('시', '').replace('군', '').replace('구', ''))) {
-              stats.set(district, (stats.get(district) ?? 0) + 1)
-              break
-            }
-          }
-        }
-      }
-    })
-    return stats
-  }, [places, provinceFilter])
-
-  // 현재 선택된 시/도의 출사지 목록
-  const provincePlaces = useMemo(() => {
-    if (!provinceFilter) return []
-    return places.filter((p) => {
-      if (!p.is_domestic) return false
-      const province = getProvinceFromCoords(p.lat, p.lng)
-      return province === provinceFilter
-    })
-  }, [places, provinceFilter])
-
-  // 현재 선택된 구/군의 출사지 목록
-  const districtPlaces = useMemo(() => {
-    if (!districtFilter || !provinceFilter) return []
-    // 구/군 내 출사지 필터링은 이름 기반으로 간단히 처리
-    const districtName = districtFilter.replace('시', '').replace('군', '').replace('구', '')
-    return provincePlaces.filter((p) => p.name.includes(districtName))
-  }, [provincePlaces, districtFilter, provinceFilter])
-
   // Google Places 검색 (DB에 결과 없을 때) - New API 사용
   useEffect(() => {
     if (!searchQuery.trim() || region !== 'domestic') {
