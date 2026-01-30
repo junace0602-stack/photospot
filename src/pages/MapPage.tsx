@@ -7,6 +7,7 @@ import {
   MapPin,
   Search,
   ChevronRight,
+  ChevronDown,
   X,
   Crosshair,
   Loader2,
@@ -453,6 +454,8 @@ export default function MapPage() {
   // 국내 지역 탐색
   const [provinceFilter, setProvinceFilter] = useState<KoreaProvince | null>(null)
   const [districtFilter, setDistrictFilter] = useState<string | null>(null)
+  const [provinceDropdownOpen, setProvinceDropdownOpen] = useState(false)
+  const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false)
 
   // 목록 컨트롤
   const [listSort, setListSort] = useState<'nearest' | 'newest' | 'popular'>('nearest')
@@ -1108,15 +1111,6 @@ export default function MapPage() {
     setListSort('popular')
   }, [])
 
-  // 국내 뒤로가기
-  const handleDomesticBack = useCallback(() => {
-    if (districtFilter) {
-      setDistrictFilter(null)
-    } else if (provinceFilter) {
-      setProvinceFilter(null)
-    }
-  }, [districtFilter, provinceFilter])
-
   const expandToHalf = useCallback(() => {
     setSnappedTop((prev) => (prev > 50 ? 50 : prev))
   }, [])
@@ -1610,29 +1604,6 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* 국내 모드: 지역 필터 태그 */}
-        {region === 'domestic' && (provinceFilter || districtFilter) && (
-          <div className="shrink-0 px-4 pb-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleDomesticBack}
-              className="p-1.5 hover:bg-gray-100 rounded-lg"
-            >
-              <ChevronRight className="w-4 h-4 text-gray-400 rotate-180" />
-            </button>
-            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-              {provinceFilter}{districtFilter ? ` > ${districtFilter}` : ''}
-              <button
-                type="button"
-                onClick={() => { setProvinceFilter(null); setDistrictFilter(null) }}
-                className="ml-0.5 hover:text-blue-900"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </span>
-          </div>
-        )}
-
         {/* 국내 모드: 출사지 검색 */}
         {region === 'domestic' && (
           <div className="shrink-0 px-4 pb-2">
@@ -1646,6 +1617,102 @@ export default function MapPage() {
                 placeholder="출사지 검색"
                 className="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+        )}
+
+        {/* 국내 모드: 지역 선택 드롭다운 */}
+        {region === 'domestic' && (
+          <div className="shrink-0 px-4 pb-2 flex items-center gap-2">
+            {/* 시/도 드롭다운 */}
+            <div className="relative flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setProvinceDropdownOpen(!provinceDropdownOpen)
+                  setDistrictDropdownOpen(false)
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
+              >
+                <span className={provinceFilter ? 'text-gray-900' : 'text-gray-500'}>
+                  {provinceFilter ?? '시/도 선택'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${provinceDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {provinceDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto z-50">
+                  {KOREA_PROVINCES.map((province) => (
+                    <button
+                      key={province}
+                      type="button"
+                      onClick={() => {
+                        handleProvinceClick(province)
+                        setProvinceDropdownOpen(false)
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                        provinceFilter === province ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                      }`}
+                    >
+                      {province}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 구/군 드롭다운 */}
+            <div className="relative flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (provinceFilter) {
+                    setDistrictDropdownOpen(!districtDropdownOpen)
+                    setProvinceDropdownOpen(false)
+                  }
+                }}
+                disabled={!provinceFilter}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+                  provinceFilter
+                    ? 'bg-gray-100 hover:bg-gray-200'
+                    : 'bg-gray-50 cursor-not-allowed'
+                }`}
+              >
+                <span className={districtFilter ? 'text-gray-900' : 'text-gray-500'}>
+                  {districtFilter ?? '구/군 선택'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${districtDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {districtDropdownOpen && provinceFilter && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto z-50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDistrictFilter('전체')
+                      setDistrictDropdownOpen(false)
+                    }}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                      districtFilter === '전체' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {KOREA_DISTRICTS[provinceFilter]?.map((district) => (
+                    <button
+                      key={district}
+                      type="button"
+                      onClick={() => {
+                        handleDistrictClick(district)
+                        setDistrictDropdownOpen(false)
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                        districtFilter === district ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                      }`}
+                    >
+                      {district}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1700,61 +1767,6 @@ export default function MapPage() {
                       {c}
                     </button>
                   ))}
-                </div>
-              )}
-
-              {/* 국내 모드: 시/도 버튼 */}
-              {region === 'domestic' && !searchQuery.trim() && (
-                <div className="shrink-0 overflow-x-auto scrollbar-hide">
-                  <div className="flex items-center gap-2 px-4 pb-2">
-                    {KOREA_PROVINCES.map((province) => (
-                      <button
-                        key={province}
-                        type="button"
-                        onClick={() => handleProvinceClick(province)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
-                          provinceFilter === province
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {province}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 국내 모드: 구/군 버튼 (시/도 선택 시) */}
-              {region === 'domestic' && provinceFilter && !searchQuery.trim() && (
-                <div className="shrink-0 overflow-x-auto scrollbar-hide">
-                  <div className="flex items-center gap-2 px-4 pb-2">
-                    <button
-                      type="button"
-                      onClick={() => setDistrictFilter('전체')}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
-                        districtFilter === '전체'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                      }`}
-                    >
-                      전체
-                    </button>
-                    {KOREA_DISTRICTS[provinceFilter]?.map((district) => (
-                      <button
-                        key={district}
-                        type="button"
-                        onClick={() => handleDistrictClick(district)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
-                          districtFilter === district
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {district}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               )}
 
