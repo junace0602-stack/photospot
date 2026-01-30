@@ -156,7 +156,13 @@ function PhotoViewer({
           className="max-w-full max-h-full object-contain transition-transform duration-150"
           style={{ transform: `translateX(${offsetX}px)` }}
           draggable={false}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            if (showExif) {
+              setShowExif(false)
+            } else {
+              e.stopPropagation()
+            }
+          }}
         />
         {hasPrev && (
           <button
