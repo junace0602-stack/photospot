@@ -52,15 +52,36 @@ function PhotoViewer({
   exifData?: ExifData | null
 }) {
   const [index, setIndex] = useState(startIndex)
-  const touchStartX = useRef(0)
-  const touchDeltaX = useRef(0)
-  const [offsetX, setOffsetX] = useState(0)
   const [showExif, setShowExif] = useState(false)
+
+  // 줌 상태
+  const [scale, setScale] = useState(1)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+
+  // 터치 관련 ref
+  const touchStartRef = useRef({ x: 0, y: 0 })
+  const lastTapRef = useRef(0)
+  const initialPinchDistRef = useRef(0)
+  const initialScaleRef = useRef(1)
+  const isPinchingRef = useRef(false)
+  const isDraggingRef = useRef(false)
+  const lastPositionRef = useRef({ x: 0, y: 0 })
+  const swipeStartXRef = useRef(0)
 
   const hasPrev = index > 0
   const hasNext = index < photos.length - 1
-  const prev = () => setIndex((i) => Math.max(0, i - 1))
-  const next = () => setIndex((i) => Math.min(photos.length - 1, i + 1))
+  const prev = () => { resetZoom(); setIndex((i) => Math.max(0, i - 1)) }
+  const next = () => { resetZoom(); setIndex((i) => Math.min(photos.length - 1, i + 1)) }
+
+  const resetZoom = () => {
+    setScale(1)
+    setPosition({ x: 0, y: 0 })
+  }
+
+  // 사진 변경 시 줌 리셋
+  useEffect(() => {
+    resetZoom()
+  }, [index])
 
   // 키보드 방향키
   useEffect(() => {
@@ -68,31 +89,105 @@ function PhotoViewer({
       if (e.key === 'ArrowLeft') prev()
       else if (e.key === 'ArrowRight') next()
       else if (e.key === 'Escape') {
-        if (showExif) setShowExif(false)
+        if (scale > 1) resetZoom()
+        else if (showExif) setShowExif(false)
         else onClose()
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose, photos.length, showExif])
+  }, [onClose, photos.length, showExif, scale])
+
+  // 두 손가락 사이 거리 계산
+  const getDistance = (touches: React.TouchList) => {
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
 
   const onTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-    touchDeltaX.current = 0
+    if (e.touches.length === 2) {
+      // 핀치 시작
+      isPinchingRef.current = true
+      isDraggingRef.current = false
+      initialPinchDistRef.current = getDistance(e.touches)
+      initialScaleRef.current = scale
+    } else if (e.touches.length === 1) {
+      // 더블탭 체크
+      const now = Date.now()
+      if (now - lastTapRef.current < 300) {
+        // 더블탭 - 줌 토글
+        if (scale > 1) {
+          resetZoom()
+        } else {
+          setScale(2)
+          setPosition({ x: 0, y: 0 })
+        }
+        lastTapRef.current = 0
+        return
+      }
+      lastTapRef.current = now
+
+      // 드래그 시작
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      lastPositionRef.current = position
+      swipeStartXRef.current = e.touches[0].clientX
+
+      if (scale > 1) {
+        isDraggingRef.current = true
+      }
+    }
   }
+
   const onTouchMove = (e: React.TouchEvent) => {
-    touchDeltaX.current = e.touches[0].clientX - touchStartX.current
-    setOffsetX(touchDeltaX.current)
+    if (e.touches.length === 2 && isPinchingRef.current) {
+      // 핀치 줌
+      const dist = getDistance(e.touches)
+      const newScale = Math.min(3, Math.max(1, initialScaleRef.current * (dist / initialPinchDistRef.current)))
+      setScale(newScale)
+
+      // 줌 아웃 시 위치 리셋
+      if (newScale <= 1) {
+        setPosition({ x: 0, y: 0 })
+      }
+    } else if (e.touches.length === 1 && scale > 1 && isDraggingRef.current) {
+      // 확대 상태에서 드래그
+      const dx = e.touches[0].clientX - touchStartRef.current.x
+      const dy = e.touches[0].clientY - touchStartRef.current.y
+      setPosition({
+        x: lastPositionRef.current.x + dx,
+        y: lastPositionRef.current.y + dy,
+      })
+    }
   }
-  const onTouchEnd = () => {
-    if (touchDeltaX.current < -50) next()
-    else if (touchDeltaX.current > 50) prev()
-    setOffsetX(0)
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (isPinchingRef.current) {
+      isPinchingRef.current = false
+      if (scale <= 1) {
+        resetZoom()
+      }
+      return
+    }
+
+    // 스와이프로 이전/다음 사진 (확대 안 된 상태에서만)
+    if (scale <= 1 && e.changedTouches.length === 1) {
+      const deltaX = e.changedTouches[0].clientX - swipeStartXRef.current
+      if (deltaX < -50) next()
+      else if (deltaX > 50) prev()
+    }
+
+    isDraggingRef.current = false
   }
 
   const handleBackgroundClick = () => {
-    if (showExif) setShowExif(false)
-    else onClose()
+    if (scale > 1) {
+      resetZoom()
+    } else if (showExif) {
+      setShowExif(false)
+    } else {
+      onClose()
+    }
   }
 
   return (
@@ -128,15 +223,15 @@ function PhotoViewer({
         <img
           src={photos[index]}
           alt={`사진 ${index + 1}`}
-          className="max-w-full max-h-full object-contain transition-transform duration-150"
-          style={{ transform: `translateX(${offsetX}px)` }}
+          className="max-w-full max-h-full object-contain select-none"
+          style={{
+            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+            transition: isPinchingRef.current || isDraggingRef.current ? 'none' : 'transform 0.2s ease-out',
+          }}
           draggable={false}
           onClick={(e) => {
-            if (showExif) {
-              setShowExif(false)
-            } else {
-              e.stopPropagation()
-            }
+            e.stopPropagation()
+            if (showExif) setShowExif(false)
           }}
         />
 
