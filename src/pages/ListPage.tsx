@@ -81,7 +81,7 @@ interface ListItem {
 
 /* ── 상수 ─────────────────────────────────────────── */
 
-const SECTIONS = ['전체', '일반', '사진', '질문', '챌린지'] as const
+const SECTIONS = ['전체', '일반', '사진', '질문', '챌린지', '장비'] as const
 type Section = (typeof SECTIONS)[number]
 
 const SORT_OPTIONS = ['최신순', '인기글'] as const
@@ -266,6 +266,18 @@ export default function ListPage() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
+  /* ── 장비 검색 상태 ── */
+  const [cameraQuery, setCameraQuery] = useState('')
+  const [lensQuery, setLensQuery] = useState('')
+  const [cameraSuggestions, setCameraSuggestions] = useState<string[]>([])
+  const [lensSuggestions, setLensSuggestions] = useState<string[]>([])
+  const [showCameraSuggestions, setShowCameraSuggestions] = useState(false)
+  const [showLensSuggestions, setShowLensSuggestions] = useState(false)
+  const [selectedCamera, setSelectedCamera] = useState<string | null>(null)
+  const [selectedLens, setSelectedLens] = useState<string | null>(null)
+  const [equipmentResults, setEquipmentResults] = useState<{ id: string; kind: 'community' | 'spot'; thumbnail_url: string; place_id?: string }[]>([])
+  const [equipmentLoading, setEquipmentLoading] = useState(false)
+
   /* ── 무한 스크롤 상태 ── */
   const [items, setItems] = useState<ListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -304,6 +316,144 @@ export default function ListPage() {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300)
     return () => clearTimeout(timer)
   }, [searchQuery])
+
+  /* ── 카메라 자동완성 ── */
+  useEffect(() => {
+    if (!cameraQuery.trim() || selectedCamera) {
+      setCameraSuggestions([])
+      return
+    }
+    const q = cameraQuery.trim().toLowerCase()
+    const timer = setTimeout(async () => {
+      // community_posts + posts 둘 다에서 고유 카메라 검색
+      const [communityRes, postsRes] = await Promise.all([
+        supabase
+          .from('community_posts')
+          .select('exif_data')
+          .not('exif_data', 'is', null)
+          .not('exif_data->camera', 'is', null)
+          .limit(500),
+        supabase
+          .from('posts')
+          .select('exif_data')
+          .not('exif_data', 'is', null)
+          .not('exif_data->camera', 'is', null)
+          .limit(500),
+      ])
+
+      const cameras = new Set<string>()
+      ;[...(communityRes.data ?? []), ...(postsRes.data ?? [])].forEach((row) => {
+        const camera = (row.exif_data as { camera?: string })?.camera
+        if (camera && camera.toLowerCase().includes(q)) {
+          cameras.add(camera)
+        }
+      })
+      setCameraSuggestions([...cameras].slice(0, 10))
+      setShowCameraSuggestions(cameras.size > 0)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [cameraQuery, selectedCamera])
+
+  /* ── 렌즈 자동완성 ── */
+  useEffect(() => {
+    if (!lensQuery.trim() || selectedLens) {
+      setLensSuggestions([])
+      return
+    }
+    const q = lensQuery.trim().toLowerCase()
+    const timer = setTimeout(async () => {
+      const [communityRes, postsRes] = await Promise.all([
+        supabase
+          .from('community_posts')
+          .select('exif_data')
+          .not('exif_data', 'is', null)
+          .not('exif_data->lens', 'is', null)
+          .limit(500),
+        supabase
+          .from('posts')
+          .select('exif_data')
+          .not('exif_data', 'is', null)
+          .not('exif_data->lens', 'is', null)
+          .limit(500),
+      ])
+
+      const lenses = new Set<string>()
+      ;[...(communityRes.data ?? []), ...(postsRes.data ?? [])].forEach((row) => {
+        const lens = (row.exif_data as { lens?: string })?.lens
+        if (lens && lens.toLowerCase().includes(q)) {
+          lenses.add(lens)
+        }
+      })
+      setLensSuggestions([...lenses].slice(0, 10))
+      setShowLensSuggestions(lenses.size > 0)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [lensQuery, selectedLens])
+
+  /* ── 장비로 사진 검색 ── */
+  useEffect(() => {
+    if (section !== '장비' || (!selectedCamera && !selectedLens)) {
+      setEquipmentResults([])
+      return
+    }
+
+    let cancelled = false
+    setEquipmentLoading(true)
+
+    const searchEquipment = async () => {
+      const results: { id: string; kind: 'community' | 'spot'; thumbnail_url: string; place_id?: string }[] = []
+
+      // community_posts 검색
+      let communityQuery = supabase
+        .from('community_posts')
+        .select('id, thumbnail_url, exif_data')
+        .not('thumbnail_url', 'is', null)
+        .limit(100)
+
+      if (selectedCamera) {
+        communityQuery = communityQuery.eq('exif_data->camera', selectedCamera)
+      }
+      if (selectedLens) {
+        communityQuery = communityQuery.eq('exif_data->lens', selectedLens)
+      }
+
+      // posts 검색 (place_id 포함)
+      let postsQuery = supabase
+        .from('posts')
+        .select('id, thumbnail_url, exif_data, place_id')
+        .not('thumbnail_url', 'is', null)
+        .limit(100)
+
+      if (selectedCamera) {
+        postsQuery = postsQuery.eq('exif_data->camera', selectedCamera)
+      }
+      if (selectedLens) {
+        postsQuery = postsQuery.eq('exif_data->lens', selectedLens)
+      }
+
+      const [communityRes, postsRes] = await Promise.all([communityQuery, postsQuery])
+
+      if (cancelled) return
+
+      // 결과 합치기
+      ;(communityRes.data ?? []).forEach((p) => {
+        if (p.thumbnail_url) {
+          results.push({ id: p.id, kind: 'community', thumbnail_url: p.thumbnail_url })
+        }
+      })
+      ;(postsRes.data ?? []).forEach((p) => {
+        if (p.thumbnail_url && p.place_id) {
+          results.push({ id: p.id, kind: 'spot', thumbnail_url: p.thumbnail_url, place_id: p.place_id })
+        }
+      })
+
+      setEquipmentResults(results)
+      setEquipmentLoading(false)
+    }
+
+    searchEquipment()
+    return () => { cancelled = true }
+  }, [section, selectedCamera, selectedLens])
 
   /* 네비게이션 직전에 스크롤 위치 저장 */
   const saveScrollBeforeNav = useCallback(() => {
@@ -488,6 +638,7 @@ export default function ListPage() {
 
   const isPhoto = section === '사진'
   const isEvent = section === '챌린지'
+  const isEquipment = section === '장비'
   const [showEndedEvents, setShowEndedEvents] = useState(false)
 
   /* 이벤트 목록: 진행중/종료 분리 + 공식 상단 고정 */
@@ -579,8 +730,8 @@ export default function ListPage() {
         </div>
       </div>
 
-      {/* 정렬 (이벤트 탭에선 숨김) */}
-      {!isEvent && (
+      {/* 정렬 (이벤트/장비 탭에선 숨김) */}
+      {!isEvent && !isEquipment && (
         <div className="shrink-0 flex gap-2 px-4 py-2 bg-white border-b border-gray-200">
           {SORT_OPTIONS.map((opt) => (
             <button
@@ -597,12 +748,174 @@ export default function ListPage() {
         </div>
       )}
 
+      {/* 장비 검색 UI */}
+      {isEquipment && (
+        <div className="shrink-0 bg-white border-b border-gray-200 p-4 space-y-3">
+          {/* 카메라 검색 */}
+          <div className="relative">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">카메라</label>
+            {selectedCamera ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+                <Camera className="w-4 h-4 text-blue-600 shrink-0" />
+                <span className="text-sm font-medium text-blue-700 flex-1">{selectedCamera}</span>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedCamera(null); setCameraQuery('') }}
+                  className="p-0.5 text-blue-400 hover:text-blue-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <Camera className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={cameraQuery}
+                    onChange={(e) => setCameraQuery(e.target.value)}
+                    onFocus={() => cameraSuggestions.length > 0 && setShowCameraSuggestions(true)}
+                    placeholder="카메라 검색 (예: Sony A7)"
+                    className="w-full pl-10 pr-3 py-2 bg-gray-100 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {showCameraSuggestions && cameraSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                    {cameraSuggestions.map((cam) => (
+                      <button
+                        key={cam}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCamera(cam)
+                          setCameraQuery('')
+                          setShowCameraSuggestions(false)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-800 hover:bg-gray-50 border-b border-gray-100"
+                      >
+                        <Camera className="w-4 h-4 text-gray-400 shrink-0" />
+                        {cam}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 렌즈 검색 */}
+          <div className="relative">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">렌즈</label>
+            {selectedLens ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
+                <span className="text-xs font-bold text-green-600 w-4 text-center shrink-0">mm</span>
+                <span className="text-sm font-medium text-green-700 flex-1">{selectedLens}</span>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedLens(null); setLensQuery('') }}
+                  className="p-0.5 text-green-400 hover:text-green-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">mm</span>
+                  <input
+                    type="text"
+                    value={lensQuery}
+                    onChange={(e) => setLensQuery(e.target.value)}
+                    onFocus={() => lensSuggestions.length > 0 && setShowLensSuggestions(true)}
+                    placeholder="렌즈 검색 (예: 24-70mm)"
+                    className="w-full pl-10 pr-3 py-2 bg-gray-100 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {showLensSuggestions && lensSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                    {lensSuggestions.map((lens) => (
+                      <button
+                        key={lens}
+                        type="button"
+                        onClick={() => {
+                          setSelectedLens(lens)
+                          setLensQuery('')
+                          setShowLensSuggestions(false)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-800 hover:bg-gray-50 border-b border-gray-100"
+                      >
+                        <span className="text-xs font-bold text-gray-400 w-4 text-center shrink-0">mm</span>
+                        {lens}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 선택된 장비 표시 */}
+          {(selectedCamera || selectedLens) && (
+            <p className="text-xs text-gray-500">
+              {equipmentLoading ? '검색 중...' : `${equipmentResults.length}개의 사진을 찾았습니다.`}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* 본문 */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {loading || (!eventsLoaded && isEvent) ? (
           <div className="flex items-center justify-center h-40 text-sm text-gray-400">
             불러오는 중...
           </div>
+        ) : isEquipment ? (
+          /* ── 장비 탭: 검색 결과 그리드 ── */
+          !selectedCamera && !selectedLens ? (
+            <div className="flex flex-col items-center justify-center h-40 text-sm text-gray-400">
+              <Camera className="w-12 h-12 text-gray-200 mb-3" />
+              <p>카메라 또는 렌즈를 검색하세요</p>
+              <p className="text-xs mt-1">EXIF 정보가 있는 사진만 검색됩니다</p>
+            </div>
+          ) : equipmentLoading ? (
+            <div className="flex items-center justify-center h-40 text-sm text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              검색 중...
+            </div>
+          ) : equipmentResults.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-sm text-gray-400">
+              검색 결과가 없습니다.
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
+              {equipmentResults.map((item) => (
+                <button
+                  key={`${item.kind}-${item.id}`}
+                  type="button"
+                  onClick={() => {
+                    saveScrollBeforeNav()
+                    if (item.kind === 'community') {
+                      navigate(`/community/${item.id}`)
+                    } else {
+                      navigate(`/spots/${item.place_id}/posts/${item.id}`)
+                    }
+                  }}
+                  className="relative aspect-square overflow-hidden bg-gray-100"
+                >
+                  <LazyImage
+                    src={getLowQualityImageUrl(item.thumbnail_url, 50)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                  {/* 출사지 글 표시 */}
+                  {item.kind === 'spot' && (
+                    <div className="absolute top-1 left-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                      <MapPin className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )
         ) : isEvent ? (
           /* ── 이벤트 탭 ── */
           <div>
