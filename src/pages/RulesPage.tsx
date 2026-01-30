@@ -79,6 +79,18 @@ export default function RulesPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-red-500 mt-0.5">-</span>
+                <span><strong>일베/극단적 커뮤니티 용어</strong>: 특정 사이트의 혐오 표현</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 mt-0.5">-</span>
+                <span><strong>고인 비하/모독</strong>: 고인을 조롱하거나 비하하는 표현</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 mt-0.5">-</span>
+                <span><strong>지역/인종 비하</strong>: 특정 지역이나 인종을 비하하는 표현</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 mt-0.5">-</span>
                 <span><strong>성인물/폭력</strong>: 선정적이거나 폭력적인 콘텐츠</span>
               </li>
               <li className="flex items-start gap-2">
@@ -94,6 +106,12 @@ export default function RulesPage() {
                 <span><strong>저작권 침해</strong>: 타인의 사진을 무단 도용</span>
               </li>
             </ul>
+            <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-100">
+              <p className="text-xs text-red-600">
+                <strong>분탕 주의:</strong> 위 규칙 외에도 커뮤니티 분위기를 해치는 글은
+                관리자 판단에 따라 삭제 및 제재될 수 있습니다.
+              </p>
+            </div>
           </section>
 
           {/* 제재 안내 */}
