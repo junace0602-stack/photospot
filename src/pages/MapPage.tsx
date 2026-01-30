@@ -426,7 +426,7 @@ export default function MapPage() {
 
     // 데이터 fetch 시작 (지도 로딩과 병렬)
     const dataPromise = Promise.all([
-      supabase.from('places').select('*'),
+      supabase.from('places').select('id, name, lat, lng, is_domestic, country'),
       supabase
         .from('posts')
         .select('place_id, thumbnail_url, likes_count, created_at')

@@ -132,7 +132,7 @@ export default function MyActivityPage() {
           }
           supabase
             .from('places')
-            .select('*')
+            .select('id, name, lat, lng')
             .in('id', ids)
             .order('name')
             .then(({ data: p }) => {

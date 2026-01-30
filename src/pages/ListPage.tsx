@@ -335,7 +335,7 @@ export default function ListPage() {
 
     supabase
       .from('events')
-      .select('*')
+      .select('id, title, topic, description, thumbnail_url, prize, start_date, end_date, is_official, status, result_announced, entries_count, created_at')
       .eq('status', 'approved')
       .order('created_at', { ascending: false })
       .then(({ data }) => {

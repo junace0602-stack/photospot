@@ -291,15 +291,16 @@ export default function CommunityPostDetailPage() {
     const load = async () => {
       // 기본 쿼리들
       const [postRes, commentsRes, likesCountRes] = await Promise.all([
-        supabase.from('community_posts').select('*').eq('id', postId).single(),
+        supabase.from('community_posts').select('id, user_id, author_nickname, section, title, content, thumbnail_url, image_urls, price, sold, likes_count, comment_count, view_count, is_anonymous, created_at, event_id, exif_data').eq('id', postId).single(),
         supabase
           .from('community_comments')
-          .select('*')
+          .select('id, community_post_id, user_id, author_nickname, content, is_anonymous, created_at')
           .eq('community_post_id', postId)
-          .order('created_at', { ascending: true }),
+          .order('created_at', { ascending: true })
+          .limit(200),
         supabase
           .from('community_likes')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('community_post_id', postId),
       ])
 

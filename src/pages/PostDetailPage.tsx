@@ -178,16 +178,17 @@ export default function PostDetailPage() {
     const load = async () => {
       // 기본 쿼리들
       const [postRes, placeRes, commentsRes, likesCountRes] = await Promise.all([
-        supabase.from('posts').select('*').eq('id', postId).single(),
+        supabase.from('posts').select('id, place_id, user_id, author_nickname, title, content_blocks, thumbnail_url, categories, time_slots, tripod, tripod_note, equipment_text, tip, visit_date, crowdedness, parking, parking_note, fee_type, fee_amount, restroom, safety, reservation, likes_count, comment_count, view_count, is_anonymous, created_at').eq('id', postId).single(),
         supabase.from('places').select('name').eq('id', spotId).single(),
         supabase
           .from('comments')
-          .select('*')
+          .select('id, post_id, user_id, author_nickname, content, is_anonymous, created_at')
           .eq('post_id', postId)
-          .order('created_at', { ascending: true }),
+          .order('created_at', { ascending: true })
+          .limit(200),
         supabase
           .from('likes')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('post_id', postId),
       ])
 
