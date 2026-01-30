@@ -626,15 +626,18 @@ export default function CreatePostPage() {
         }
 
         let error
+        let newPostId: string | null = null
         if (isEditMode && editPost) {
           ;({ error } = await supabase.from('posts').update(postData).eq('id', editPost.id))
         } else {
-          ;({ error } = await supabase.from('posts').insert({
+          const insertRes = await supabase.from('posts').insert({
             place_id: spotId,
             user_id: user.id,
             author_nickname: profile?.nickname ?? '익명',
             ...postData,
-          }))
+          }).select('id').single()
+          error = insertRes.error
+          newPostId = insertRes.data?.id ?? null
         }
 
         if (error) {
@@ -642,7 +645,14 @@ export default function CreatePostPage() {
           return
         }
 
-        navigate(isEditMode ? -1 as any : `/spots/${spotId}`, { replace: !isEditMode })
+        // 새 글 작성 시 상세 페이지로 이동, 수정 시 뒤로가기
+        if (isEditMode) {
+          navigate(-1 as any)
+        } else if (newPostId) {
+          navigate(`/spots/${spotId}/posts/${newPostId}`, { replace: true })
+        } else {
+          navigate(`/spots/${spotId}`, { replace: true })
+        }
       } else {
         // 일반/사진/질문 → community_posts 테이블
         const textContent = blocks
