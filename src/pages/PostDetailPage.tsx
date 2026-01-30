@@ -622,24 +622,22 @@ export default function PostDetailPage() {
 
   // 본문에서 YouTube URL 추출
   const youtubeVideos = useMemo(() => {
-    console.log('[PostDetail YouTube] post.youtube_urls:', post.youtube_urls)
-    console.log('[PostDetail YouTube] blocks:', blocks)
-
-    // youtube_urls 필드가 있으면 그것 사용, 없으면 본문에서 추출
-    if (post.youtube_urls && post.youtube_urls.length > 0) {
-      const videos = extractYouTubeUrls(post.youtube_urls.join(' '))
-      console.log('[PostDetail YouTube] from youtube_urls field:', videos)
-      return videos
+    // youtube_urls 필드가 배열이고 값이 있으면 그것 사용, 없으면 본문에서 추출
+    const youtubeUrls = Array.isArray(post.youtube_urls) ? post.youtube_urls : []
+    if (youtubeUrls.length > 0) {
+      return extractYouTubeUrls(youtubeUrls.join(' '))
     }
     const allText = blocks
       .filter((b) => b.type === 'text')
       .map((b) => b.text ?? '')
       .join('\n')
-    console.log('[PostDetail YouTube] allText from blocks:', allText)
-    const videos = extractYouTubeUrls(allText)
-    console.log('[PostDetail YouTube] extracted videos:', videos)
-    return videos
+    return extractYouTubeUrls(allText)
   }, [post.youtube_urls, blocks])
+
+  // tags 배열 안전하게 처리
+  const postTags = useMemo(() => {
+    return Array.isArray(post.tags) ? post.tags : []
+  }, [post.tags])
 
   // Build meta rows
   const metaRows: { icon: typeof Car; label: string; value: string }[] = []
@@ -820,7 +818,7 @@ export default function PostDetailPage() {
           </div>
 
           {/* Meta info */}
-          {(metaRows.length > 0 || post.categories.length > 0) && (
+          {(metaRows.length > 0 || post.categories.length > 0 || postTags.length > 0) && (
             <div className="mx-4 mb-4 bg-gray-50 rounded-xl p-4 space-y-2.5">
               {metaRows.map(({ icon: Icon, label, value }) => (
                 <div key={label} className="flex items-center gap-2 text-sm">
@@ -840,6 +838,22 @@ export default function PostDetailPage() {
                         className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs"
                       >
                         {cat}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {postTags.length > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Tag className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-gray-500 w-20 shrink-0">태그</span>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {postTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-xs"
+                      >
+                        {tag}
                       </span>
                     ))}
                   </div>
