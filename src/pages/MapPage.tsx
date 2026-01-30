@@ -135,6 +135,93 @@ const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }
 }
 const POPULAR_COUNTRIES = ['일본', '대만', '태국', '베트남', '미국']
 
+/* ── 국내 시/도 및 구/군 데이터 ── */
+const KOREA_PROVINCES = [
+  '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종',
+  '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주',
+] as const
+
+type KoreaProvince = (typeof KOREA_PROVINCES)[number]
+
+// 시/도별 구/군 목록
+const KOREA_DISTRICTS: Record<KoreaProvince, string[]> = {
+  '서울': ['강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구', '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구', '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구', '종로구', '중구', '중랑구'],
+  '부산': ['강서구', '금정구', '기장군', '남구', '동구', '동래구', '부산진구', '북구', '사상구', '사하구', '서구', '수영구', '연제구', '영도구', '중구', '해운대구'],
+  '대구': ['남구', '달서구', '달성군', '동구', '북구', '서구', '수성구', '중구', '군위군'],
+  '인천': ['강화군', '계양구', '남동구', '동구', '미추홀구', '부평구', '서구', '연수구', '옹진군', '중구'],
+  '광주': ['광산구', '남구', '동구', '북구', '서구'],
+  '대전': ['대덕구', '동구', '서구', '유성구', '중구'],
+  '울산': ['남구', '동구', '북구', '울주군', '중구'],
+  '세종': ['세종시'],
+  '경기': ['가평군', '고양시', '과천시', '광명시', '광주시', '구리시', '군포시', '김포시', '남양주시', '동두천시', '부천시', '성남시', '수원시', '시흥시', '안산시', '안성시', '안양시', '양주시', '양평군', '여주시', '연천군', '오산시', '용인시', '의왕시', '의정부시', '이천시', '파주시', '평택시', '포천시', '하남시', '화성시'],
+  '강원': ['강릉시', '고성군', '동해시', '삼척시', '속초시', '양구군', '양양군', '영월군', '원주시', '인제군', '정선군', '철원군', '춘천시', '태백시', '평창군', '홍천군', '화천군', '횡성군'],
+  '충북': ['괴산군', '단양군', '보은군', '영동군', '옥천군', '음성군', '제천시', '증평군', '진천군', '청주시', '충주시'],
+  '충남': ['계룡시', '공주시', '금산군', '논산시', '당진시', '보령시', '부여군', '서산시', '서천군', '아산시', '예산군', '천안시', '청양군', '태안군', '홍성군'],
+  '전북': ['고창군', '군산시', '김제시', '남원시', '무주군', '부안군', '순창군', '완주군', '익산시', '임실군', '장수군', '전주시', '정읍시', '진안군'],
+  '전남': ['강진군', '고흥군', '곡성군', '광양시', '구례군', '나주시', '담양군', '목포시', '무안군', '보성군', '순천시', '신안군', '여수시', '영광군', '영암군', '완도군', '장성군', '장흥군', '진도군', '함평군', '해남군', '화순군'],
+  '경북': ['경산시', '경주시', '고령군', '구미시', '김천시', '문경시', '봉화군', '상주시', '성주군', '안동시', '영덕군', '영양군', '영주시', '영천시', '예천군', '울릉군', '울진군', '의성군', '청도군', '청송군', '칠곡군', '포항시'],
+  '경남': ['거제시', '거창군', '고성군', '김해시', '남해군', '밀양시', '사천시', '산청군', '양산시', '의령군', '진주시', '창녕군', '창원시', '통영시', '하동군', '함안군', '함양군', '합천군'],
+  '제주': ['제주시', '서귀포시'],
+}
+
+// 시/도별 중심 좌표 및 줌
+const PROVINCE_CENTERS: Record<KoreaProvince, { lat: number; lng: number; zoom: number }> = {
+  '서울': { lat: 37.5665, lng: 126.978, zoom: 11 },
+  '부산': { lat: 35.1796, lng: 129.0756, zoom: 11 },
+  '대구': { lat: 35.8714, lng: 128.6014, zoom: 11 },
+  '인천': { lat: 37.4563, lng: 126.7052, zoom: 11 },
+  '광주': { lat: 35.1595, lng: 126.8526, zoom: 11 },
+  '대전': { lat: 36.3504, lng: 127.3845, zoom: 11 },
+  '울산': { lat: 35.5384, lng: 129.3114, zoom: 11 },
+  '세종': { lat: 36.4801, lng: 127.2882, zoom: 11 },
+  '경기': { lat: 37.4138, lng: 127.5183, zoom: 9 },
+  '강원': { lat: 37.8228, lng: 128.1555, zoom: 8 },
+  '충북': { lat: 36.6357, lng: 127.4912, zoom: 9 },
+  '충남': { lat: 36.5184, lng: 126.8, zoom: 9 },
+  '전북': { lat: 35.716, lng: 127.1448, zoom: 9 },
+  '전남': { lat: 34.8679, lng: 126.991, zoom: 9 },
+  '경북': { lat: 36.576, lng: 128.5056, zoom: 8 },
+  '경남': { lat: 35.4606, lng: 128.2132, zoom: 9 },
+  '제주': { lat: 33.4996, lng: 126.5312, zoom: 10 },
+}
+
+// 시/도 경계 (대략적인 bounding box)
+const PROVINCE_BOUNDS: Record<KoreaProvince, { minLat: number; maxLat: number; minLng: number; maxLng: number }> = {
+  '서울': { minLat: 37.42, maxLat: 37.72, minLng: 126.76, maxLng: 127.18 },
+  '부산': { minLat: 34.88, maxLat: 35.39, minLng: 128.76, maxLng: 129.35 },
+  '대구': { minLat: 35.56, maxLat: 36.13, minLng: 128.35, maxLng: 128.93 },
+  '인천': { minLat: 37.16, maxLat: 37.82, minLng: 125.92, maxLng: 126.86 },
+  '광주': { minLat: 35.05, maxLat: 35.27, minLng: 126.72, maxLng: 127.01 },
+  '대전': { minLat: 36.2, maxLat: 36.5, minLng: 127.24, maxLng: 127.54 },
+  '울산': { minLat: 35.32, maxLat: 35.77, minLng: 128.93, maxLng: 129.52 },
+  '세종': { minLat: 36.37, maxLat: 36.68, minLng: 127.04, maxLng: 127.42 },
+  '경기': { minLat: 36.89, maxLat: 38.3, minLng: 126.37, maxLng: 127.87 },
+  '강원': { minLat: 37.02, maxLat: 38.62, minLng: 127.05, maxLng: 129.37 },
+  '충북': { minLat: 36.01, maxLat: 37.26, minLng: 127.27, maxLng: 128.65 },
+  '충남': { minLat: 35.97, maxLat: 37.04, minLng: 125.93, maxLng: 127.38 },
+  '전북': { minLat: 35.28, maxLat: 36.13, minLng: 126.36, maxLng: 127.93 },
+  '전남': { minLat: 33.89, maxLat: 35.51, minLng: 125.06, maxLng: 127.89 },
+  '경북': { minLat: 35.56, maxLat: 37.56, minLng: 128.35, maxLng: 131.87 },
+  '경남': { minLat: 34.47, maxLat: 35.91, minLng: 127.56, maxLng: 129.44 },
+  '제주': { minLat: 33.11, maxLat: 33.96, minLng: 126.08, maxLng: 126.98 },
+}
+
+// 좌표로 시/도 판별
+function getProvinceFromCoords(lat: number, lng: number): KoreaProvince | null {
+  // 우선순위: 좁은 지역(광역시/세종)을 먼저 체크
+  const priorityOrder: KoreaProvince[] = [
+    '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종',
+    '제주', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남',
+  ]
+  for (const province of priorityOrder) {
+    const b = PROVINCE_BOUNDS[province]
+    if (lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng) {
+      return province
+    }
+  }
+  return null
+}
+
 /** 나라 이름 한글↔영어 매핑 (검색용) */
 const COUNTRY_ALIASES: Record<string, string[]> = {
   '일본': ['japan', 'jp'],
@@ -362,6 +449,10 @@ export default function MapPage() {
   const [region, setRegion] = useState<'domestic' | 'international'>('domestic')
   const [countryFilter, setCountryFilter] = useState<string | null>(null)
   const [countrySearch, setCountrySearch] = useState('')
+
+  // 국내 지역 탐색
+  const [provinceFilter, setProvinceFilter] = useState<KoreaProvince | null>(null)
+  const [districtFilter, setDistrictFilter] = useState<string | null>(null)
 
   // 목록 컨트롤
   const [listSort, setListSort] = useState<'nearest' | 'newest' | 'popular'>('nearest')
@@ -698,6 +789,18 @@ export default function MapPage() {
       items = items.filter((p) =>
         p.is_domestic !== false && (!p.country || p.country === '한국'),
       )
+      // 시/도 필터
+      if (provinceFilter) {
+        items = items.filter((p) => {
+          const province = getProvinceFromCoords(p.lat, p.lng)
+          return province === provinceFilter
+        })
+        // 구/군 필터 (전체가 아닌 경우에만)
+        if (districtFilter && districtFilter !== '전체') {
+          const districtName = districtFilter.replace('시', '').replace('군', '').replace('구', '')
+          items = items.filter((p) => p.name.includes(districtName))
+        }
+      }
     } else {
       items = items.filter((p) =>
         p.is_domestic === false || (p.country != null && p.country !== '한국'),
@@ -725,7 +828,7 @@ export default function MapPage() {
     }
 
     return items
-  }, [places, userPos, placeStats, searchQuery, listSort, region, countryFilter])
+  }, [places, userPos, placeStats, searchQuery, listSort, region, countryFilter, provinceFilter, districtFilter])
 
   // 나라 검색 결과 (모든 알려진 나라에서 검색)
   const filteredCountries = useMemo(() => {
@@ -753,6 +856,66 @@ export default function MapPage() {
   }, [places, placeStats])
 
   const isCountrySearching = region === 'international' && !countryFilter && countrySearch.trim().length > 0
+
+  // 시/도별 출사지 통계
+  const provinceStats = useMemo(() => {
+    const stats = new Map<KoreaProvince, number>()
+    places.forEach((p) => {
+      if (p.is_domestic) {
+        const province = getProvinceFromCoords(p.lat, p.lng)
+        if (province) {
+          stats.set(province, (stats.get(province) ?? 0) + 1)
+        }
+      }
+    })
+    return stats
+  }, [places])
+
+  // 구/군별 출사지 통계 (선택된 시/도 내)
+  const districtStats = useMemo(() => {
+    const stats = new Map<string, number>()
+    if (!provinceFilter) return stats
+    places.forEach((p) => {
+      if (p.is_domestic) {
+        const province = getProvinceFromCoords(p.lat, p.lng)
+        if (province === provinceFilter) {
+          // 구/군은 좌표만으로 정확히 판별하기 어려우므로, 출사지 이름에서 추출 시도
+          const districts = KOREA_DISTRICTS[provinceFilter]
+          for (const district of districts) {
+            if (p.name.includes(district.replace('시', '').replace('군', '').replace('구', ''))) {
+              stats.set(district, (stats.get(district) ?? 0) + 1)
+              break
+            }
+          }
+        }
+      }
+    })
+    return stats
+  }, [places, provinceFilter])
+
+  // 현재 선택된 시/도의 출사지 목록
+  const provincePlaces = useMemo(() => {
+    if (!provinceFilter) return []
+    return places.filter((p) => {
+      if (!p.is_domestic) return false
+      const province = getProvinceFromCoords(p.lat, p.lng)
+      return province === provinceFilter
+    })
+  }, [places, provinceFilter])
+
+  // 현재 선택된 구/군의 출사지 목록
+  const districtPlaces = useMemo(() => {
+    if (!districtFilter || !provinceFilter) return []
+    // 구/군 내 출사지 필터링은 이름 기반으로 간단히 처리
+    const districtName = districtFilter.replace('시', '').replace('군', '').replace('구', '')
+    return provincePlaces.filter((p) => p.name.includes(districtName))
+  }, [provincePlaces, districtFilter, provinceFilter])
+
+  // 국내 탐색 모드 판별
+  const isDomesticBrowsing = region === 'domestic' && !searchQuery.trim()
+  const showProvinceList = isDomesticBrowsing && !provinceFilter
+  const showDistrictList = isDomesticBrowsing && provinceFilter && !districtFilter
+  const showProvincePlaces = isDomesticBrowsing && provinceFilter && districtFilter
 
   // Google Places 검색 (DB에 결과 없을 때) - New API 사용
   useEffect(() => {
@@ -985,6 +1148,34 @@ export default function MapPage() {
   const handleClearCountry = useCallback(() => {
     setCountryFilter(null)
   }, [])
+
+  // 국내 시/도 클릭
+  const handleProvinceClick = useCallback((province: KoreaProvince) => {
+    setProvinceFilter(province)
+    setDistrictFilter(null)
+    setListSort('popular')
+    // 해당 시/도로 지도 이동
+    const center = PROVINCE_CENTERS[province]
+    if (mapInstanceRef.current && center) {
+      mapInstanceRef.current.panTo({ lat: center.lat, lng: center.lng })
+      mapInstanceRef.current.setZoom(center.zoom)
+    }
+  }, [])
+
+  // 국내 구/군 클릭
+  const handleDistrictClick = useCallback((district: string) => {
+    setDistrictFilter(district)
+    setListSort('popular')
+  }, [])
+
+  // 국내 뒤로가기
+  const handleDomesticBack = useCallback(() => {
+    if (districtFilter) {
+      setDistrictFilter(null)
+    } else if (provinceFilter) {
+      setProvinceFilter(null)
+    }
+  }, [districtFilter, provinceFilter])
 
   const expandToHalf = useCallback(() => {
     setSnappedTop((prev) => (prev > 50 ? 50 : prev))
@@ -1479,8 +1670,31 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* 국내 모드: 출사지 검색 — 항상 표시 (peek 포함) */}
-        {region === 'domestic' && (
+        {/* 국내 모드: 지역 필터 태그 */}
+        {region === 'domestic' && (provinceFilter || districtFilter) && (
+          <div className="shrink-0 px-4 pb-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDomesticBack}
+              className="p-1.5 hover:bg-gray-100 rounded-lg"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-400 rotate-180" />
+            </button>
+            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+              {provinceFilter}{districtFilter ? ` > ${districtFilter}` : ''}
+              <button
+                type="button"
+                onClick={() => { setProvinceFilter(null); setDistrictFilter(null) }}
+                className="ml-0.5 hover:text-blue-900"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          </div>
+        )}
+
+        {/* 국내 모드: 출사지 검색 — 지역 선택 후에만 표시 */}
+        {region === 'domestic' && (provinceFilter || searchQuery) && (
           <div className="shrink-0 px-4 pb-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1498,7 +1712,72 @@ export default function MapPage() {
 
         {/* peek 상태에서는 목록/결과 숨김 */}
         {sheetState !== 'peek' && (
-          isCountrySearching ? (
+          /* 국내 시/도 목록 */
+          showProvinceList ? (
+            <div ref={listRef} className="flex-1 overflow-y-auto">
+              <p className="px-4 py-2 text-xs text-gray-500 bg-gray-50">지역을 선택하세요</p>
+              {KOREA_PROVINCES.map((province) => {
+                const count = provinceStats.get(province) ?? 0
+                return (
+                  <button
+                    key={province}
+                    type="button"
+                    onClick={() => handleProvinceClick(province)}
+                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                      <MapPin className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-900">{province}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">출사지 {count}개</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  </button>
+                )
+              })}
+            </div>
+          ) : showDistrictList ? (
+            /* 국내 구/군 목록 */
+            <div ref={listRef} className="flex-1 overflow-y-auto">
+              <p className="px-4 py-2 text-xs text-gray-500 bg-gray-50">{provinceFilter} 내 지역을 선택하세요</p>
+              {/* 전체 보기 버튼 */}
+              <button
+                type="button"
+                onClick={() => setDistrictFilter('전체')}
+                className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50 bg-blue-50"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                  <MapPin className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-blue-700">{provinceFilter} 전체</span>
+                  <p className="text-xs text-blue-500 mt-0.5">출사지 {provinceStats.get(provinceFilter!) ?? 0}개</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-blue-400 shrink-0" />
+              </button>
+              {KOREA_DISTRICTS[provinceFilter!]?.map((district) => {
+                const count = districtStats.get(district) ?? 0
+                return (
+                  <button
+                    key={district}
+                    type="button"
+                    onClick={() => handleDistrictClick(district)}
+                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                      <MapPin className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-900">{district}</span>
+                      {count > 0 && <p className="text-xs text-gray-400 mt-0.5">출사지 {count}개</p>}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  </button>
+                )
+              })}
+            </div>
+          ) : isCountrySearching ? (
             <div ref={listRef} className="flex-1 overflow-y-auto">
               {filteredCountries.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">
@@ -1551,7 +1830,7 @@ export default function MapPage() {
 
               {/* 정렬 · 필터 */}
               <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
-                {region === 'international' && countryFilter ? (
+                {(region === 'international' && countryFilter) || (region === 'domestic' && districtFilter) ? (
                   <>
                     <button
                       type="button"
