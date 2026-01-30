@@ -395,12 +395,10 @@ export default function CreatePostPage() {
   const [timeSlots, setTimeSlots] = useState<Set<string>>(new Set())
   const [tripod, setTripod] = useState('')
   const [tripodNote, setTripodNote] = useState('')
-  const [equipmentText, setEquipmentText] = useState('')
   const [tip, setTip] = useState('')
 
   // Meta state — 상세 (펼치기/접기)
   const [detailOpen, setDetailOpen] = useState(false)
-  const [visitDate, setVisitDate] = useState('')
   const [crowdedness, setCrowdedness] = useState('')
   const [parking, setParking] = useState('')
   const [parkingNote, setParkingNote] = useState('')
@@ -426,10 +424,8 @@ export default function CreatePostPage() {
     if (editPost.time_slots.length) setTimeSlots(new Set(editPost.time_slots))
     if (editPost.tripod) setTripod(editPost.tripod)
     if (editPost.tripod_note) setTripodNote(editPost.tripod_note)
-    if (editPost.equipment_text) setEquipmentText(editPost.equipment_text)
     if (editPost.tip) setTip(editPost.tip)
     // meta — 상세
-    if (editPost.visit_date) setVisitDate(editPost.visit_date)
     if (editPost.crowdedness) setCrowdedness(editPost.crowdedness)
     if (editPost.parking) setParking(editPost.parking)
     if (editPost.parking_note) setParkingNote(editPost.parking_note)
@@ -610,10 +606,8 @@ export default function CreatePostPage() {
           time_slots: [...timeSlots],
           tripod: tripod || null,
           tripod_note: (tripod === '기타' && tripodNote.trim()) ? tripodNote.trim() : null,
-          equipment_text: equipmentText.trim() || null,
           tip: tip.trim() || null,
           exif_data: exifData,
-          visit_date: visitDate || null,
           crowdedness: crowdedness || null,
           parking: parking || null,
           parking_note: (parking === '기타' && parkingNote.trim()) ? parkingNote.trim() : null,
@@ -1035,18 +1029,6 @@ export default function CreatePostPage() {
                 )}
               </div>
 
-              {/* 사용한 장비 (텍스트) */}
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">사용한 장비</p>
-                <input
-                  type="text"
-                  placeholder="예: Sony A7IV + 24-70mm f/2.8"
-                  value={equipmentText}
-                  onChange={(e) => setEquipmentText(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-100 rounded-lg text-sm outline-none"
-                />
-              </div>
-
               {/* 나만의 팁 */}
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">나만의 팁</p>
@@ -1078,17 +1060,6 @@ export default function CreatePostPage() {
 
               {detailOpen && (
                 <div className="px-4 pb-6 space-y-5">
-                  {/* 방문 날짜 */}
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">방문 날짜</p>
-                    <input
-                      type="date"
-                      value={visitDate}
-                      onChange={(e) => setVisitDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-100 rounded-lg text-sm outline-none"
-                    />
-                  </div>
-
                   {/* 혼잡도 */}
                   <RadioGroup label="혼잡도" options={CROWDEDNESS} value={crowdedness} onChange={setCrowdedness} />
 
