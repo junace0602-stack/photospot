@@ -6,6 +6,7 @@ export interface Place {
   created_at: string
   country?: string
   is_domestic?: boolean
+  address?: string
 }
 
 export interface ContentBlock {

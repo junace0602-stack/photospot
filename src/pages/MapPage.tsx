@@ -223,6 +223,60 @@ function getProvinceFromCoords(lat: number, lng: number): KoreaProvince | null {
   return null
 }
 
+/** 주소 문자열에서 시/도 추출 */
+function getProvinceFromAddress(address: string | undefined): KoreaProvince | null {
+  if (!address) return null
+
+  // 시/도 매핑 (주소에서 사용되는 다양한 형태)
+  const provinceMap: { patterns: string[]; province: KoreaProvince }[] = [
+    { patterns: ['서울특별시', '서울시', '서울'], province: '서울' },
+    { patterns: ['부산광역시', '부산시', '부산'], province: '부산' },
+    { patterns: ['대구광역시', '대구시', '대구'], province: '대구' },
+    { patterns: ['인천광역시', '인천시', '인천'], province: '인천' },
+    { patterns: ['광주광역시', '광주시', '광주'], province: '광주' },
+    { patterns: ['대전광역시', '대전시', '대전'], province: '대전' },
+    { patterns: ['울산광역시', '울산시', '울산'], province: '울산' },
+    { patterns: ['세종특별자치시', '세종시', '세종'], province: '세종' },
+    { patterns: ['경기도', '경기'], province: '경기' },
+    { patterns: ['강원특별자치도', '강원도', '강원'], province: '강원' },
+    { patterns: ['충청북도', '충북'], province: '충북' },
+    { patterns: ['충청남도', '충남'], province: '충남' },
+    { patterns: ['전북특별자치도', '전라북도', '전북'], province: '전북' },
+    { patterns: ['전라남도', '전남'], province: '전남' },
+    { patterns: ['경상북도', '경북'], province: '경북' },
+    { patterns: ['경상남도', '경남'], province: '경남' },
+    { patterns: ['제주특별자치도', '제주도', '제주'], province: '제주' },
+  ]
+
+  for (const { patterns, province } of provinceMap) {
+    for (const pattern of patterns) {
+      if (address.includes(pattern)) {
+        return province
+      }
+    }
+  }
+  return null
+}
+
+/** 주소 문자열에서 구/군 추출 */
+function getDistrictFromAddress(address: string | undefined): string | null {
+  if (!address) return null
+
+  // 구/군/시 패턴 매칭 (예: "동작구", "성남시", "가평군")
+  const districtMatch = address.match(/([가-힣]+[구군시])\s/)
+  if (districtMatch) {
+    return districtMatch[1]
+  }
+
+  // 공백 없이 붙어있는 경우도 처리
+  const districtMatch2 = address.match(/([가-힣]{2,}[구군])/)
+  if (districtMatch2) {
+    return districtMatch2[1]
+  }
+
+  return null
+}
+
 /** 나라 이름 한글↔영어 매핑 (검색용) */
 const COUNTRY_ALIASES: Record<string, string[]> = {
   '일본': ['japan', 'jp'],
@@ -456,6 +510,8 @@ export default function MapPage() {
   const [districtFilter, setDistrictFilter] = useState<string | null>(null)
   const [provinceDropdownOpen, setProvinceDropdownOpen] = useState(false)
   const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false)
+  const provinceDropdownRef = useRef<HTMLDivElement>(null)
+  const districtDropdownRef = useRef<HTMLDivElement>(null)
 
   // 목록 컨트롤
   const [listSort, setListSort] = useState<'nearest' | 'newest' | 'popular'>('nearest')
@@ -549,7 +605,7 @@ export default function MapPage() {
 
     // 데이터 fetch 시작 (지도 로딩과 병렬)
     const dataPromise = Promise.all([
-      supabase.from('places').select('id, name, lat, lng, is_domestic, country'),
+      supabase.from('places').select('id, name, lat, lng, is_domestic, country, address'),
       supabase
         .from('posts')
         .select('place_id, thumbnail_url, likes_count, created_at')
@@ -792,16 +848,30 @@ export default function MapPage() {
       items = items.filter((p) =>
         p.is_domestic !== false && (!p.country || p.country === '한국'),
       )
-      // 시/도 필터
+      // 시/도 필터 (주소 기반 우선, 없으면 좌표 기반)
       if (provinceFilter) {
         items = items.filter((p) => {
-          const province = getProvinceFromCoords(p.lat, p.lng)
-          return province === provinceFilter
+          // 1. 주소에서 시/도 추출 시도
+          const provinceFromAddr = getProvinceFromAddress(p.address)
+          if (provinceFromAddr) {
+            return provinceFromAddr === provinceFilter
+          }
+          // 2. 주소가 없으면 좌표 기반 판별
+          const provinceFromCoords = getProvinceFromCoords(p.lat, p.lng)
+          return provinceFromCoords === provinceFilter
         })
         // 구/군 필터 (전체가 아닌 경우에만)
         if (districtFilter && districtFilter !== '전체') {
-          const districtName = districtFilter.replace('시', '').replace('군', '').replace('구', '')
-          items = items.filter((p) => p.name.includes(districtName))
+          items = items.filter((p) => {
+            // 1. 주소에서 구/군 추출 시도
+            const districtFromAddr = getDistrictFromAddress(p.address)
+            if (districtFromAddr) {
+              return districtFromAddr === districtFilter
+            }
+            // 2. 주소가 없으면 이름에서 구/군 매칭 시도
+            const districtName = districtFilter.replace('시', '').replace('군', '').replace('구', '')
+            return p.name.includes(districtName)
+          })
         }
       }
     } else {
@@ -1110,6 +1180,25 @@ export default function MapPage() {
     setDistrictFilter(district)
     setListSort('popular')
   }, [])
+
+  // 드롭다운 열릴 때 선택된 항목으로 스크롤
+  useEffect(() => {
+    if (provinceDropdownOpen && provinceDropdownRef.current && provinceFilter) {
+      const selectedEl = provinceDropdownRef.current.querySelector('[data-selected="true"]')
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'center' })
+      }
+    }
+  }, [provinceDropdownOpen, provinceFilter])
+
+  useEffect(() => {
+    if (districtDropdownOpen && districtDropdownRef.current && districtFilter) {
+      const selectedEl = districtDropdownRef.current.querySelector('[data-selected="true"]')
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'center' })
+      }
+    }
+  }, [districtDropdownOpen, districtFilter])
 
   const expandToHalf = useCallback(() => {
     setSnappedTop((prev) => (prev > 50 ? 50 : prev))
@@ -1640,11 +1729,15 @@ export default function MapPage() {
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${provinceDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {provinceDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto z-50">
+                <div
+                  ref={provinceDropdownRef}
+                  className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto z-50"
+                >
                   {KOREA_PROVINCES.map((province) => (
                     <button
                       key={province}
                       type="button"
+                      data-selected={provinceFilter === province}
                       onClick={() => {
                         handleProvinceClick(province)
                         setProvinceDropdownOpen(false)
@@ -1683,9 +1776,13 @@ export default function MapPage() {
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${districtDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {districtDropdownOpen && provinceFilter && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto z-50">
+                <div
+                  ref={districtDropdownRef}
+                  className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto z-50"
+                >
                   <button
                     type="button"
+                    data-selected={districtFilter === '전체'}
                     onClick={() => {
                       setDistrictFilter('전체')
                       setDistrictDropdownOpen(false)
@@ -1700,6 +1797,7 @@ export default function MapPage() {
                     <button
                       key={district}
                       type="button"
+                      data-selected={districtFilter === district}
                       onClick={() => {
                         handleDistrictClick(district)
                         setDistrictDropdownOpen(false)
