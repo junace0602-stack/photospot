@@ -27,6 +27,7 @@ interface Event {
   result_announced: boolean
   winner_id: string | null
   winner_post_id: string | null
+  second_place_id: string | null
   entries_count: number
   created_at: string
   hidden?: boolean
@@ -225,35 +226,59 @@ function WinnerSelectModal({
       return
     }
 
-    // 2. events 테이블 업데이트
+    // 2. 2위 찾기 (우승자 제외하고 추천수 최다, 동점 시 먼저 작성한 글)
+    const sortedPosts = [...posts].sort((a, b) => {
+      if (b.likes_count !== a.likes_count) return b.likes_count - a.likes_count
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    })
+    const otherPosts = sortedPosts.filter(p => p.id !== selectedPost.id)
+    const secondPlacePost = otherPosts[0] ?? null
+    const secondPlaceUserId = secondPlacePost?.user_id ?? null
+
+    // 3. events 테이블 업데이트
     await supabase.from('events').update({
       result_announced: true,
       winner_id: selectedPost.user_id,
       winner_post_id: selectedPost.id,
+      second_place_id: secondPlaceUserId,
     }).eq('id', event.id)
 
-    // 3. 우승자에게 알림 (상품 이미지 포함)
+    // 4. 우승자에게 48시간 챌린지 개최 권한 부여
+    const permissionUntil = new Date()
+    permissionUntil.setHours(permissionUntil.getHours() + 48)
+    await supabase.from('profiles').update({
+      challenge_permission_until: permissionUntil.toISOString(),
+    }).eq('id', selectedPost.user_id)
+
+    // 5. 우승자에게 알림 (상품 이미지 포함 + 챌린지 개최 권한 안내)
     if (event.has_prize && event.prize_image_url) {
-      // 상품이 있는 경우: 축하 메시지 + 기프티콘 이미지 동봉
       await supabase.from('notifications').insert({
         user_id: selectedPost.user_id,
         type: 'winner',
-        message: `축하합니다! "${event.title}" 챌린지에서 우승하셨습니다! 상품: ${event.prize}`,
+        message: `🏆 축하합니다! "${event.title}" 챌린지에서 우승하셨습니다! 상품: ${event.prize}\n\n48시간 동안 새로운 챌린지를 개최할 수 있는 권한이 부여되었습니다!`,
         link: `/events/${event.id}`,
         image_url: event.prize_image_url,
       })
 
-      // prize_sent 업데이트
       await supabase
         .from('challenge_winners')
         .update({ prize_sent: true })
         .eq('id', winnerData.id)
     } else {
-      // 상품이 없는 경우: 축하 알림만
       await supabase.from('notifications').insert({
         user_id: selectedPost.user_id,
         type: 'winner',
-        message: `축하합니다! "${event.title}" 챌린지에서 우승하셨습니다!`,
+        message: `🏆 축하합니다! "${event.title}" 챌린지에서 우승하셨습니다!\n\n48시간 동안 새로운 챌린지를 개최할 수 있는 권한이 부여되었습니다!`,
+        link: `/events/${event.id}`,
+      })
+    }
+
+    // 6. 2위에게 알림 (권한 대기 안내)
+    if (secondPlaceUserId && secondPlaceUserId !== selectedPost.user_id) {
+      await supabase.from('notifications').insert({
+        user_id: secondPlaceUserId,
+        type: 'runner_up',
+        message: `🥈 "${event.title}" 챌린지에서 2위를 차지하셨습니다! 1위가 48시간 내에 챌린지를 개최하지 않으면 24시간 동안 챌린지 개최 권한이 부여됩니다.`,
         link: `/events/${event.id}`,
       })
     }
@@ -350,6 +375,24 @@ function WinnerSelectModal({
 
         {/* 푸터 */}
         <div className="shrink-0 p-4 border-t border-gray-200 bg-gray-50">
+          {/* 자동 선정 버튼 */}
+          {posts.length > 0 && !selectedPostId && (
+            <button
+              type="button"
+              onClick={() => {
+                // 추천수 1위, 동점 시 먼저 작성한 글 선정
+                const sorted = [...posts].sort((a, b) => {
+                  if (b.likes_count !== a.likes_count) return b.likes_count - a.likes_count
+                  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                })
+                if (sorted[0]) setSelectedPostId(sorted[0].id)
+              }}
+              className="w-full py-2.5 mb-3 bg-amber-100 text-amber-700 rounded-xl text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <Trophy className="w-4 h-4" />
+              추천수 1위 자동 선정
+            </button>
+          )}
           {selectedPost && (
             <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500">선택된 우승자</p>

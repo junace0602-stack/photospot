@@ -5,10 +5,35 @@ import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
+import { checkAndGrantSecondPlacePermission } from '../lib/challengeRelay'
 
 export default function EventCreatePage() {
   const navigate = useNavigate()
-  const { loggedIn, loading: authLoading, user, profile, isAdminMode } = useAuth()
+  const { loggedIn, loading: authLoading, user, profile, isAdminMode, role } = useAuth()
+
+  // 챌린지 생성 권한 확인
+  const hasPermission = (() => {
+    if (role === 'superadmin') return true
+    if (profile?.challenge_permission_until) {
+      return new Date(profile.challenge_permission_until) > new Date()
+    }
+    return false
+  })()
+
+  // 남은 권한 시간 계산
+  const getRemainingTime = (): string | null => {
+    if (role === 'superadmin') return null // superadmin은 무제한
+    if (!profile?.challenge_permission_until) return null
+    const end = new Date(profile.challenge_permission_until)
+    const now = new Date()
+    const diffMs = end.getTime() - now.getTime()
+    if (diffMs <= 0) return null
+    const hours = Math.floor(diffMs / (1000 * 60 * 60))
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+    if (hours > 0) return `${hours}시간 ${minutes}분`
+    return `${minutes}분`
+  }
+  const remainingTime = getRemainingTime()
 
   const [title, setTitle] = useState('')
   const [topic, setTopic] = useState('')
@@ -33,6 +58,13 @@ export default function EventCreatePage() {
       navigate('/login', { replace: true })
     }
   }, [authLoading, loggedIn, navigate])
+
+  // 페이지 로드 시 2위 권한 부여 체크 실행
+  useEffect(() => {
+    checkAndGrantSecondPlacePermission().catch(() => {
+      // 에러 무시 (백그라운드 작업)
+    })
+  }, [])
 
   const handleThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -121,6 +153,48 @@ export default function EventCreatePage() {
     )
   }
 
+  // 권한 없는 사용자에게 안내 메시지 표시
+  if (!hasPermission) {
+    return (
+      <div className="flex flex-col h-full bg-gray-50">
+        <header className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
+          <button type="button" onClick={() => navigate(-1)}>
+            <ArrowLeft className="w-6 h-6 text-gray-700" />
+          </button>
+          <h1 className="text-lg font-bold">챌린지 만들기</h1>
+        </header>
+
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Gift className="w-10 h-10 text-blue-500" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">챌린지 릴레이 시스템</h2>
+            <p className="text-sm text-gray-600 leading-relaxed mb-4">
+              챌린지는 이전 챌린지 우승자만 개최할 수 있습니다.<br />
+              챌린지에 참여하여 우승하면 다음 챌린지를<br />
+              직접 개최할 수 있는 권한이 주어집니다!
+            </p>
+            <div className="bg-blue-50 rounded-xl p-4 text-left text-sm">
+              <p className="font-semibold text-blue-800 mb-2">권한 부여 안내</p>
+              <ul className="text-blue-700 space-y-1">
+                <li>• 1위: 48시간 동안 챌린지 개최 가능</li>
+                <li>• 2위: 1위 권한 만료 시 24시간 부여</li>
+              </ul>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/list')}
+              className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold"
+            >
+              진행 중인 챌린지 보기
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* 헤더 */}
@@ -132,6 +206,11 @@ export default function EventCreatePage() {
         {isAdminMode && (
           <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
             공식
+          </span>
+        )}
+        {remainingTime && (
+          <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+            {remainingTime} 남음
           </span>
         )}
       </header>

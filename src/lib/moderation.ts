@@ -224,21 +224,21 @@ export async function checkDuplicatePost(
   content: string,
 ): Promise<ModerationResult> {
   try {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
     const currentText = `${title} ${content}`
 
-    // 최근 24시간 내 내 글 조회 (출사지 글 + 커뮤니티 글)
+    // 최근 10분 내 내 글 조회 (출사지 글 + 커뮤니티 글)
     const [postsRes, communityRes] = await Promise.all([
       supabase
         .from('posts')
         .select('title, content_blocks')
         .eq('user_id', userId)
-        .gte('created_at', oneDayAgo),
+        .gte('created_at', tenMinutesAgo),
       supabase
         .from('community_posts')
         .select('title, content')
         .eq('user_id', userId)
-        .gte('created_at', oneDayAgo),
+        .gte('created_at', tenMinutesAgo),
     ])
 
     // 출사지 글 비교
@@ -250,7 +250,7 @@ export async function checkDuplicatePost(
         .join(' ') ?? ''
       const postText = `${post.title} ${postContent}`
 
-      if (calculateSimilarity(currentText, postText) >= 0.8) {
+      if (calculateSimilarity(currentText, postText) >= 0.95) {
         return {
           blocked: true,
           message: '이미 비슷한 내용의 글을 작성하셨습니다.',
@@ -262,7 +262,7 @@ export async function checkDuplicatePost(
     for (const post of communityRes.data ?? []) {
       const postText = `${post.title} ${post.content ?? ''}`
 
-      if (calculateSimilarity(currentText, postText) >= 0.8) {
+      if (calculateSimilarity(currentText, postText) >= 0.95) {
         return {
           blocked: true,
           message: '이미 비슷한 내용의 글을 작성하셨습니다.',
@@ -282,20 +282,20 @@ export async function checkDuplicateComment(
   content: string,
 ): Promise<ModerationResult> {
   try {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
 
-    // 최근 24시간 내 내 댓글 조회
+    // 최근 10분 내 내 댓글 조회
     const [commentsRes, communityCommentsRes] = await Promise.all([
       supabase
         .from('comments')
         .select('content')
         .eq('user_id', userId)
-        .gte('created_at', oneDayAgo),
+        .gte('created_at', tenMinutesAgo),
       supabase
         .from('community_comments')
         .select('content')
         .eq('user_id', userId)
-        .gte('created_at', oneDayAgo),
+        .gte('created_at', tenMinutesAgo),
     ])
 
     const allComments = [
@@ -304,7 +304,7 @@ export async function checkDuplicateComment(
     ]
 
     for (const comment of allComments) {
-      if (calculateSimilarity(content, comment.content) >= 0.8) {
+      if (calculateSimilarity(content, comment.content) >= 0.95) {
         return {
           blocked: true,
           message: '이미 비슷한 내용의 글을 작성하셨습니다.',

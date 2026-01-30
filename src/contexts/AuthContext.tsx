@@ -17,6 +17,7 @@ export interface Profile {
   nickname: string
   role: Role
   terms_agreed_at: string | null
+  challenge_permission_until: string | null
 }
 
 interface AuthState {
@@ -74,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, nickname, role, terms_agreed_at')
+      .select('id, nickname, role, terms_agreed_at, challenge_permission_until')
       .eq('id', userId)
       .single()
     setProfile(data as Profile | null)
