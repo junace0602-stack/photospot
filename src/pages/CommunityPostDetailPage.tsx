@@ -51,7 +51,7 @@ interface CommunityPost {
   is_anonymous: boolean
   created_at: string
   event_id: string | null
-  exif_data: ExifData | null
+  exif_data: (ExifData | null)[] | null
   youtube_urls: string[] | null
 }
 
@@ -71,15 +71,18 @@ function PhotoViewer({
   photos,
   startIndex,
   onClose,
-  exifData,
+  exifDataList,
 }: {
   photos: string[]
   startIndex: number
   onClose: () => void
-  exifData?: ExifData | null
+  exifDataList?: (ExifData | null)[] | null
 }) {
   const [index, setIndex] = useState(startIndex)
   const [showExif, setShowExif] = useState(false)
+
+  // 현재 사진의 EXIF 데이터
+  const currentExif = exifDataList?.[index] ?? null
 
   // 줌 상태
   const [scale, setScale] = useState(1)
@@ -223,7 +226,7 @@ function PhotoViewer({
           {index + 1} / {photos.length}
         </span>
         <div className="flex items-center gap-2">
-          {hasExifData(exifData) && (
+          {hasExifData(currentExif) && (
             <button
               type="button"
               onClick={() => setShowExif(!showExif)}
@@ -280,7 +283,7 @@ function PhotoViewer({
         )}
 
         {/* EXIF 팝업 */}
-        {showExif && exifData && (
+        {showExif && currentExif && (
           <div
             className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-xl p-4 min-w-[260px] max-w-[90%]"
             onClick={(e) => e.stopPropagation()}
@@ -295,38 +298,38 @@ function PhotoViewer({
               </button>
             </div>
             <div className="space-y-2 text-sm text-white/90">
-              {exifData.dateTime && (
+              {currentExif.dateTime && (
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-white/60 shrink-0" />
-                  <span>{exifData.dateTime}</span>
+                  <span>{currentExif.dateTime}</span>
                 </div>
               )}
-              {exifData.camera && (
+              {currentExif.camera && (
                 <div className="flex items-center gap-2">
                   <Camera className="w-4 h-4 text-white/60 shrink-0" />
-                  <span>{exifData.camera}</span>
+                  <span>{currentExif.camera}</span>
                 </div>
               )}
-              {exifData.lens && (
+              {currentExif.lens && (
                 <div className="flex items-center gap-2">
                   <Aperture className="w-4 h-4 text-white/60 shrink-0" />
-                  <span>{exifData.lens}</span>
+                  <span>{currentExif.lens}</span>
                 </div>
               )}
-              {(exifData.aperture || exifData.shutterSpeed || exifData.iso) && (
+              {(currentExif.aperture || currentExif.shutterSpeed || currentExif.iso) && (
                 <div className="flex items-center gap-2">
                   <span className="w-4 h-4 text-white/60 shrink-0 text-center text-xs">ISO</span>
                   <span>
-                    {[exifData.aperture, exifData.shutterSpeed, exifData.iso ? `ISO${exifData.iso}` : null]
+                    {[currentExif.aperture, currentExif.shutterSpeed, currentExif.iso ? `ISO${currentExif.iso}` : null]
                       .filter(Boolean)
                       .join(' · ')}
                   </span>
                 </div>
               )}
-              {exifData.focalLength && (
+              {currentExif.focalLength && (
                 <div className="flex items-center gap-2">
                   <span className="w-4 h-4 text-white/60 shrink-0 text-center text-xs">mm</span>
-                  <span>{exifData.focalLength}</span>
+                  <span>{currentExif.focalLength}</span>
                 </div>
               )}
             </div>
@@ -1047,7 +1050,7 @@ export default function CommunityPostDetailPage() {
           photos={photos}
           startIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
-          exifData={post?.exif_data}
+          exifDataList={post?.exif_data}
         />
       )}
 

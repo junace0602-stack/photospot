@@ -442,7 +442,8 @@ export default function CreatePostPage() {
     { type: 'text', id: newId(), text: '' },
   ])
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set())
-  const [exifData, setExifData] = useState<ExifData | null>(null)
+  // 각 사진별 EXIF 저장 (block id → ExifData)
+  const [exifMap, setExifMap] = useState<Map<string, ExifData>>(new Map())
 
   // YouTube 임베드 관련
   const [excludedYouTubeIds, setExcludedYouTubeIds] = useState<Set<string>>(new Set())
@@ -655,13 +656,14 @@ export default function CreatePostPage() {
     const ids = new Set(entries.map((en) => en.id))
     setUploadingIds((prev) => new Set([...prev, ...ids]))
 
-    // 첫 번째 사진의 EXIF 추출 (아직 없을 때만)
-    const firstFile = entries[0]?.file
-    if (firstFile && !exifData) {
-      extractExif(firstFile).then((data) => {
-        if (data) setExifData(data)
+    // 각 사진의 EXIF 추출
+    entries.forEach(({ file, id }) => {
+      extractExif(file).then((data) => {
+        if (data) {
+          setExifMap((prev) => new Map(prev).set(id, data))
+        }
       })
-    }
+    })
 
     entries.forEach(({ file, id }) => {
       uploadImageWithThumbnail(file)
@@ -779,7 +781,11 @@ export default function CreatePostPage() {
           })
           .filter((b) => b.type === 'photo' || (b.type === 'text' && b.text?.trim()))
 
-        const firstPhoto = blocks.find((b) => b.type === 'photo') as PhotoBlock | undefined
+        const photoBlocks = blocks.filter((b): b is PhotoBlock => b.type === 'photo')
+        const firstPhoto = photoBlocks[0]
+
+        // 각 사진의 EXIF를 순서대로 배열로 변환
+        const exifDataArray = photoBlocks.map((b) => exifMap.get(b.id) ?? null)
 
         // YouTube URL 추출 (제외된 것 제외)
         const youtubeUrls = detectedYouTubeVideos.map((v) => v.url)
@@ -794,7 +800,7 @@ export default function CreatePostPage() {
           tripod: tripod || null,
           tripod_note: (tripod === '기타' && tripodNote.trim()) ? tripodNote.trim() : null,
           tip: tip.trim() || null,
-          exif_data: exifData,
+          exif_data: exifDataArray.length > 0 ? exifDataArray : null,
           crowdedness: crowdedness || null,
           parking: parking || null,
           parking_note: (parking === '기타' && parkingNote.trim()) ? parkingNote.trim() : null,
@@ -849,6 +855,9 @@ export default function CreatePostPage() {
 
         const firstPhoto = photoBlocks[0] ?? null
 
+        // 각 사진의 EXIF를 순서대로 배열로 변환
+        const exifDataArray = photoBlocks.map((b) => exifMap.get(b.id) ?? null)
+
         // 질문글은 제목 앞에 [질문] 태그 추가
         const finalTitle = isQuestion ? `[질문] ${title.trim()}` : title.trim()
 
@@ -865,7 +874,7 @@ export default function CreatePostPage() {
           image_urls: imageUrls,
           is_anonymous: isAnonymous,
           is_question: isQuestion,
-          exif_data: exifData,
+          exif_data: exifDataArray.length > 0 ? exifDataArray : null,
           youtube_urls: communityYoutubeUrls.length > 0 ? communityYoutubeUrls : null,
         }
         // event_id 컬럼이 DB에 있을 때만 포함
