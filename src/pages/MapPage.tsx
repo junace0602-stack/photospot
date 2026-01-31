@@ -1231,7 +1231,7 @@ export default function MapPage() {
     setSearchQuery('')
   }, [userPos])
 
-  // 등록된 장소 클릭 → 배너 표시 (마커 클릭 & 목록 클릭 공용)
+  // 등록된 장소 클릭 → 배너 표시 (마커 클릭용)
   const handlePlaceClick = useCallback((place: Place & { distance?: number }) => {
     const stats = placeStats.get(place.id)
     const dist = place.distance ?? (userPos
@@ -1256,6 +1256,11 @@ export default function MapPage() {
     setSearchQuery('')
     setSelectedPlace(null) // 이전 카드 숨기기
   }, [placeStats, userPos])
+
+  // 목록에서 장소 클릭 → 바로 상세페이지 이동
+  const handleListPlaceClick = useCallback((place: Place & { distance?: number }) => {
+    navigate(`/spots/${place.id}`)
+  }, [navigate])
 
   // 마커 클릭 핸들러 (placeId로 place 찾아서 처리)
   const handleMarkerClick = useCallback((placeId: string) => {
@@ -2177,7 +2182,7 @@ export default function MapPage() {
                       key={place.id}
                       place={place}
                       stats={placeStats.get(place.id)}
-                      onSelect={handlePlaceClick}
+                      onSelect={handleListPlaceClick}
                     />
                   ))
                 )}
