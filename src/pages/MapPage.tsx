@@ -1910,7 +1910,7 @@ export default function MapPage() {
         {/* peek 상태에서는 목록/결과 숨김 */}
         {sheetState !== 'peek' && (
           showCountryList ? (
-            <div ref={listRef} className="flex-1 overflow-y-auto">
+            <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto">
               {/* 검색어 입력 중이면 자동완성 드롭다운 사용, 목록은 숨김 */}
               {countrySearch.trim() ? (
                 countrySuggestions.length === 0 && (
@@ -2019,7 +2019,7 @@ export default function MapPage() {
               </div>
 
               {/* 장소 목록 */}
-              <div ref={listRef} className="flex-1 overflow-y-auto">
+              <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto">
                 {displayedPlaces.length === 0 ? (
                   <>
                     {/* Google Places 검색 결과 */}
