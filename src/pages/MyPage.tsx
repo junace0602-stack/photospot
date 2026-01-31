@@ -543,7 +543,7 @@ function LoggedInView() {
             <div className="p-4">
               <h3 className="text-base font-bold text-gray-900 mb-3">☕ 후원하기</h3>
               <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                {'안녕하세요, 출사지도 개발자입니다.\n\n출사지도는 사용자 편의를 위해 광고나 유료 서비스 없이 무료로 운영하고 있습니다.\n\n후원금은 서버비 및 앱 개발비에 사용될 예정입니다.'}
+                {'후원금은 서버 유지 및 기능 개선에 사용됩니다.\n작은 후원이 큰 도움이 됩니다. 감사합니다!'}
               </p>
               <div className="mt-4">
                 <a
