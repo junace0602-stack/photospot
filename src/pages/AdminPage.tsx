@@ -1949,6 +1949,7 @@ interface FeedbackItem {
   email: string | null
   is_read: boolean
   created_at: string
+  nickname?: string  // joined from profiles
 }
 
 function FeedbackTab({ onUnreadCount }: { onUnreadCount: (n: number) => void }) {
@@ -1963,7 +1964,33 @@ function FeedbackTab({ onUnreadCount }: { onUnreadCount: (n: number) => void }) 
       .from('feedback')
       .select('*')
       .order('created_at', { ascending: false })
-    const list = (data ?? []) as FeedbackItem[]
+
+    if (!data || data.length === 0) {
+      setItems([])
+      onUnreadCount(0)
+      setLoading(false)
+      return
+    }
+
+    // 유저 닉네임 조회
+    const userIds = [...new Set(data.map(f => f.user_id))]
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, nickname')
+      .in('id', userIds)
+
+    const nicknameMap = new Map<string, string>()
+    if (profiles) {
+      for (const p of profiles) {
+        nicknameMap.set(p.id, p.nickname)
+      }
+    }
+
+    const list: FeedbackItem[] = data.map(f => ({
+      ...f,
+      nickname: nicknameMap.get(f.user_id) ?? '알 수 없음',
+    }))
+
     setItems(list)
     onUnreadCount(list.filter((f) => !f.is_read).length)
     setLoading(false)
@@ -2029,9 +2056,12 @@ function FeedbackTab({ onUnreadCount }: { onUnreadCount: (n: number) => void }) 
           <ChevronLeft className="w-4 h-4" /> 목록으로
         </button>
         <div className="bg-white rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${catColor(detail.category)}`}>
               {detail.category}
+            </span>
+            <span className="text-xs text-gray-600 font-medium">
+              {detail.nickname}
             </span>
             <span className="text-xs text-gray-400">
               {new Date(detail.created_at).toLocaleString('ko-KR')}
@@ -2094,9 +2124,12 @@ function FeedbackTab({ onUnreadCount }: { onUnreadCount: (n: number) => void }) 
               className="w-4 h-4 mt-0.5 rounded border-gray-300 text-blue-600 shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${catColor(f.category)}`}>
                   {f.category}
+                </span>
+                <span className="text-[11px] text-gray-600 font-medium">
+                  {f.nickname}
                 </span>
                 {!f.is_read && (
                   <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
