@@ -51,10 +51,9 @@ interface TagStat {
 }
 
 interface SpotStat {
-  id: string
-  title: string
-  location: string
-  view_count: number
+  place_id: string
+  place_name: string
+  post_count: number
 }
 
 interface HourlyData {
@@ -220,15 +219,36 @@ function StatsTab() {
         setPopularTags(sortedTags)
       }
 
-      // 인기 출사지 TOP 10 (조회수 기준)
-      const { data: topSpots } = await supabase
+      // 인기 출사지 TOP 10 (글 수 기준)
+      const { data: postsWithPlace } = await supabase
         .from('posts')
-        .select('id, title, location, view_count')
-        .order('view_count', { ascending: false })
-        .limit(10)
+        .select('place_id, places(name)')
 
-      if (topSpots) {
-        setPopularSpots(topSpots.map(s => ({ ...s, view_count: s.view_count ?? 0 })))
+      if (postsWithPlace) {
+        // place_id별 글 수 집계
+        const placeCountMap = new Map<string, { name: string; count: number }>()
+        for (const post of postsWithPlace) {
+          const placeId = post.place_id
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const placeData = post.places as any
+          const placeName = placeData?.name ?? '알 수 없음'
+          const existing = placeCountMap.get(placeId)
+          if (existing) {
+            existing.count++
+          } else {
+            placeCountMap.set(placeId, { name: placeName, count: 1 })
+          }
+        }
+        // 글 수 많은 순 정렬 후 TOP 10
+        const sortedSpots = Array.from(placeCountMap.entries())
+          .sort((a, b) => b[1].count - a[1].count)
+          .slice(0, 10)
+          .map(([placeId, data]) => ({
+            place_id: placeId,
+            place_name: data.name,
+            post_count: data.count,
+          }))
+        setPopularSpots(sortedSpots)
       }
 
       // 시간대별 글 작성 (오늘)
@@ -320,7 +340,7 @@ function StatsTab() {
   }
 
   const tagMax = Math.max(...popularTags.map(t => t.count), 1)
-  const spotMax = Math.max(...popularSpots.map(s => s.view_count), 1)
+  const spotMax = Math.max(...popularSpots.map(s => s.post_count), 1)
 
   return (
     <div className="p-4 space-y-4">
@@ -364,11 +384,11 @@ function StatsTab() {
         <div className="flex items-center gap-2 mb-3">
           <MapPin className="w-4 h-4 text-red-500" />
           <h3 className="text-sm font-bold text-gray-700">인기 출사지 TOP 10</h3>
-          <span className="text-[10px] text-gray-400">(조회수 기준)</span>
+          <span className="text-[10px] text-gray-400">(글 수 기준)</span>
         </div>
         {popularSpots.length > 0 ? (
           <SimpleBarChart
-            data={popularSpots.map(s => ({ label: s.title, value: s.view_count }))}
+            data={popularSpots.map(s => ({ label: s.place_name, value: s.post_count }))}
             maxValue={spotMax}
             label=""
           />
