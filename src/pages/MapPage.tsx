@@ -1910,10 +1910,14 @@ export default function MapPage() {
         )}
 
 
-        {/* peek 상태에서는 목록/결과 숨김 */}
-        {sheetState !== 'peek' && (
-          showCountryList ? (
-            <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto">
+        {/* 목록 영역 - 항상 렌더링, peek일 때만 숨김 */}
+        <div
+          ref={listRef}
+          className="flex-1 overflow-y-auto"
+          style={{ display: sheetState === 'peek' ? 'none' : 'block' }}
+        >
+          {showCountryList ? (
+            <>
               {/* 검색어 입력 중이면 자동완성 드롭다운 사용, 목록은 숨김 */}
               {countrySearch.trim() ? (
                 countrySuggestions.length === 0 && (
@@ -1952,11 +1956,11 @@ export default function MapPage() {
                   )
                 })
               )}
-            </div>
+            </>
           ) : (
             <>
               {/* 정렬 · 필터 */}
-              <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
+              <div className="sticky top-0 bg-white z-10 flex items-center gap-2 px-4 pb-2">
                 {(region === 'domestic' && provinceFilter) ? (
                   <>
                     <button
@@ -2022,7 +2026,7 @@ export default function MapPage() {
               </div>
 
               {/* 장소 목록 */}
-              <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto">
+              <div className="flex-1">
                 {displayedPlaces.length === 0 ? (
                   <>
                     {/* Google Places 검색 결과 */}
@@ -2107,8 +2111,8 @@ export default function MapPage() {
                 )}
               </div>
             </>
-          )
-        )}
+          )}
+        </div>
       </div>
 
       {/* 핀 주변 출사지 목록 */}
