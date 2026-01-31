@@ -817,11 +817,11 @@ export default function CommunityPostDetailPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!isOwner && user && !post.is_anonymous) {
-                    setBlockTarget({ id: post.user_id, nickname: post.author_nickname })
+                  if (!post.is_anonymous) {
+                    navigate(`/users/${post.user_id}/posts`)
                   }
                 }}
-                className="text-sm font-semibold text-gray-900 text-left"
+                className={`text-sm font-semibold text-left ${post.is_anonymous ? 'text-gray-900' : 'text-blue-600 hover:underline'}`}
               >
                 {displayNameInPost(post.author_nickname, post.is_anonymous, isAdminMode, { isPostAuthor: true })}
               </button>
@@ -964,11 +964,11 @@ export default function CommunityPostDetailPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (!isMyComment && !c.is_anonymous) {
-                              setBlockTarget({ id: c.user_id, nickname: c.author_nickname })
+                            if (!c.is_anonymous) {
+                              navigate(`/users/${c.user_id}/posts`)
                             }
                           }}
-                          className="text-sm font-semibold text-gray-800 text-left"
+                          className={`text-sm font-semibold text-left ${c.is_anonymous ? 'text-gray-800' : 'text-blue-600 hover:underline'}`}
                         >
                           {displayNameInPost(c.author_nickname, c.is_anonymous, isAdminMode, {
                             isPostAuthor: isByPostAuthor,

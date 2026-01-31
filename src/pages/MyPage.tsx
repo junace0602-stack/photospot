@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FileText,
@@ -16,11 +16,15 @@ import {
   Bookmark,
   Clock,
   Moon,
+  Camera,
+  Info,
+  Eye,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { supabase } from '../lib/supabase'
+import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
 
 /* ── 후원 링크 ─────────────────────────────────────── */
 
@@ -262,6 +266,54 @@ function LoggedInView() {
     loadNicknameChangedAt()
   }, [user])
 
+  // 프로필 공개 설정
+  const [isProfilePublic, setIsProfilePublic] = useState(profile?.is_profile_public ?? true)
+  const [showProfilePublicInfo, setShowProfilePublicInfo] = useState(false)
+
+  useEffect(() => {
+    setIsProfilePublic(profile?.is_profile_public ?? true)
+  }, [profile?.is_profile_public])
+
+  const toggleProfilePublic = async () => {
+    if (!user) return
+    const newValue = !isProfilePublic
+    setIsProfilePublic(newValue)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_profile_public: newValue })
+      .eq('id', user.id)
+    if (error) {
+      setIsProfilePublic(!newValue)
+      toast.error('설정 변경에 실패했습니다')
+    }
+  }
+
+  // 프로필 사진 업로드
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    setUploadingAvatar(true)
+    try {
+      const url = await uploadImage(file)
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: url })
+        .eq('id', user.id)
+      if (error) throw error
+      await refreshProfile()
+      toast.success('프로필 사진이 변경되었습니다')
+    } catch {
+      toast.error('이미지 업로드에 실패했습니다')
+    } finally {
+      setUploadingAvatar(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+    }
+  }
+
   useEffect(() => {
     if (!editing) return
     const trimmed = editNickname.trim()
@@ -354,9 +406,42 @@ function LoggedInView() {
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-4 pt-6 pb-8">
         {/* 프로필 정보 */}
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/40">
-            <User className="w-10 h-10 text-white/80" />
-          </div>
+          {/* 프로필 사진 (클릭하여 변경) */}
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept={IMAGE_ACCEPT}
+            onChange={handleAvatarChange}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="relative w-20 h-20 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/40 overflow-hidden group"
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt="프로필"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <User className="w-10 h-10 text-white/80" />
+            )}
+            {/* 카메라 오버레이 */}
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {uploadingAvatar ? (
+                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Camera className="w-6 h-6 text-white" />
+              )}
+            </div>
+            {/* 모바일용 항상 표시되는 카메라 아이콘 */}
+            <div className="absolute bottom-0 right-0 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md">
+              <Camera className="w-3.5 h-3.5 text-blue-600" />
+            </div>
+          </button>
 
           {editing ? (
             <div className="flex-1 min-w-0">
@@ -509,6 +594,55 @@ function LoggedInView() {
                 />
               </div>
             </button>
+            {/* 작성글 공개 토글 */}
+            <div className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-3">
+                <Eye className="w-5 h-5 text-gray-400 shrink-0" />
+                <span className="text-sm text-gray-800">작성글 공개</span>
+                <button
+                  type="button"
+                  onClick={() => setShowProfilePublicInfo(true)}
+                  className="p-0.5 text-gray-300 hover:text-gray-400"
+                >
+                  <Info className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={toggleProfilePublic}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  isProfilePublic ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                    isProfilePublic ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+            {/* 작성글 공개 안내 모달 */}
+            {showProfilePublicInfo && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/50 z-50"
+                  onClick={() => setShowProfilePublicInfo(false)}
+                />
+                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl p-5 w-[85%] max-w-xs">
+                  <h3 className="font-bold text-gray-900 mb-2">작성글 공개 설정</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    다른 사람이 회원님의 닉네임을 클릭했을 때 회원님이 작성한 글을 볼 수 있는지 설정합니다.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowProfilePublicInfo(false)}
+                    className="mt-4 w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl"
+                  >
+                    확인
+                  </button>
+                </div>
+              </>
+            )}
             <MenuItem
               icon={ShieldBan}
               label="차단 목록"
