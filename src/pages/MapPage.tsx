@@ -68,6 +68,44 @@ function savePosition(lat: number, lng: number) {
   }
 }
 
+// sessionStorage 키 - 지도 탭 상태 유지용
+const MAP_STATE_KEY = 'photospot_map_state'
+
+interface MapPageState {
+  region: 'domestic' | 'international'
+  countryFilter: string | null
+  scrollTop: number
+}
+
+// 지도 페이지 상태 저장
+function saveMapState(state: Partial<MapPageState>) {
+  try {
+    const current = loadMapState()
+    const merged = { ...current, ...state }
+    sessionStorage.setItem(MAP_STATE_KEY, JSON.stringify(merged))
+  } catch {
+    // 저장 실패 시 무시
+  }
+}
+
+// 지도 페이지 상태 불러오기
+function loadMapState(): MapPageState {
+  try {
+    const saved = sessionStorage.getItem(MAP_STATE_KEY)
+    if (saved) {
+      const state = JSON.parse(saved)
+      return {
+        region: state.region ?? 'domestic',
+        countryFilter: state.countryFilter ?? null,
+        scrollTop: state.scrollTop ?? 0,
+      }
+    }
+  } catch {
+    // 파싱 실패 시 무시
+  }
+  return { region: 'domestic', countryFilter: null, scrollTop: 0 }
+}
+
 const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }> = {
   '일본': { lat: 36.2, lng: 138.3, zoom: 5 },
   '대만': { lat: 23.7, lng: 120.9, zoom: 7 },
@@ -563,10 +601,12 @@ export default function MapPage() {
   const clustererRef = useRef<MarkerClusterer | null>(null)
   const [mapReady, setMapReady] = useState(false)
 
-  // 국내/해외
-  const [region, setRegion] = useState<'domestic' | 'international'>('domestic')
-  const [countryFilter, setCountryFilter] = useState<string | null>(null)
+  // 국내/해외 - sessionStorage에서 복원
+  const savedMapState = useMemo(() => loadMapState(), [])
+  const [region, setRegion] = useState<'domestic' | 'international'>(savedMapState.region)
+  const [countryFilter, setCountryFilter] = useState<string | null>(savedMapState.countryFilter)
   const [countrySearch, setCountrySearch] = useState('')
+  const pendingScrollRef = useRef(savedMapState.scrollTop)
 
   // 국내 지역 탐색
   const [provinceFilter, setProvinceFilter] = useState<KoreaProvince | null>(null)
@@ -669,6 +709,38 @@ export default function MapPage() {
     el.style.height = `${window.innerHeight - px}px`
     currentTopRef.current = px
   }, [snappedTop, snapToPx])
+
+  /* ── 지도 탭 상태 저장 (뒤로가기 복원용) ── */
+  useEffect(() => {
+    saveMapState({ region, countryFilter })
+  }, [region, countryFilter])
+
+  // 스크롤 위치 복원 (목록 렌더링 후)
+  useEffect(() => {
+    if (pendingScrollRef.current > 0 && listRef.current && sheetState !== 'peek') {
+      // 약간의 딜레이 후 스크롤 복원 (DOM 렌더링 완료 대기)
+      const timer = setTimeout(() => {
+        if (listRef.current) {
+          listRef.current.scrollTop = pendingScrollRef.current
+          pendingScrollRef.current = 0
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [sheetState])
+
+  // 스크롤 위치 저장 (스크롤할 때마다)
+  useEffect(() => {
+    const listEl = listRef.current
+    if (!listEl) return
+
+    const handleScroll = () => {
+      saveMapState({ scrollTop: listEl.scrollTop })
+    }
+
+    listEl.addEventListener('scroll', handleScroll, { passive: true })
+    return () => listEl.removeEventListener('scroll', handleScroll)
+  }, [])
 
   /* ── 데이터 로드 + 지도 초기화 (최적화) ── */
   useEffect(() => {
