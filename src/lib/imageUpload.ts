@@ -14,9 +14,9 @@ const ALLOWED_EXTENSIONS = new Set([
 ])
 
 const MAX_DIMENSION = 1920
-const THUMBNAIL_SIZE = 100
+const THUMBNAIL_SIZE = 400
 const WEBP_QUALITY = 0.85
-const THUMBNAIL_QUALITY = 0.8
+const THUMBNAIL_QUALITY = 0.82
 
 const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,.webp'
 export { IMAGE_ACCEPT }
@@ -134,9 +134,9 @@ export async function uploadImage(file: File): Promise<string> {
 }
 
 /**
- * 이미지 + 썸네일(100x100)을 함께 업로드
+ * 이미지 + 썸네일(400x400)을 함께 업로드
  * - 원본: 최대 1920px, WebP 85% 품질
- * - 썸네일: 100x100px 중앙 크롭, WebP 80% 품질
+ * - 썸네일: 400x400px 중앙 크롭, WebP 82% 품질
  */
 export async function uploadImageWithThumbnail(file: File): Promise<UploadResult> {
   // 1. 형식 검증
@@ -163,7 +163,7 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
   // 4. 원본 WebP 변환 + 리사이즈
   const blob = await toWebP(source)
 
-  // 5. 썸네일 생성 (100x100 중앙 크롭)
+  // 5. 썸네일 생성 (400x400 중앙 크롭)
   const thumbBlob = await toWebP(source, THUMBNAIL_SIZE, THUMBNAIL_QUALITY, true)
 
   // 6. 병렬 업로드 (원본 + 썸네일)
