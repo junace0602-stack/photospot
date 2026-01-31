@@ -41,7 +41,6 @@ import {
   Info,
   Aperture,
   Loader2,
-  Download,
   Square,
   CheckSquare,
 } from 'lucide-react'
@@ -107,9 +106,6 @@ function PhotoViewer({
     return saved === 'original'
   })
 
-  // 저장 중 상태
-  const [saving, setSaving] = useState(false)
-
   // 현재 사진의 EXIF 데이터
   const currentExif = exifDataList?.[index] ?? null
 
@@ -130,27 +126,50 @@ function PhotoViewer({
   // 현재 표시할 이미지 URL (원본 또는 최적화)
   const displayPhotos = useOriginal ? originalPhotos : photos
 
-  // 이미지 저장 함수
-  const handleSave = async () => {
-    if (saving) return
-    setSaving(true)
+  // 공유 상태
+  const [sharing, setSharing] = useState(false)
+
+  // 이미지 공유 함수 (Web Share API)
+  const handleShare = async () => {
+    if (sharing) return
+    setSharing(true)
     try {
       const imageUrl = originalPhotos[index]
       const response = await fetch(imageUrl)
       const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `photo_${index + 1}.${blob.type.includes('webp') ? 'webp' : blob.type.includes('png') ? 'png' : 'jpg'}`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } catch {
-      // 다운로드 실패 시 새 탭에서 열기
-      window.open(originalPhotos[index], '_blank')
+      const ext = blob.type.includes('webp') ? 'webp' : blob.type.includes('png') ? 'png' : 'jpg'
+      const file = new File([blob], `photo_${index + 1}.${ext}`, { type: blob.type })
+
+      // Web Share API 지원 확인 (파일 공유 지원 여부)
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+        })
+      } else if (navigator.share) {
+        // 파일 공유 미지원 시 URL 공유
+        await navigator.share({
+          title: '사진 공유',
+          url: imageUrl,
+        })
+      } else {
+        // Web Share API 미지원 시 다운로드로 fallback
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `photo_${index + 1}.${ext}`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      }
+    } catch (err) {
+      // 사용자가 공유 취소한 경우는 무시
+      if (err instanceof Error && err.name !== 'AbortError') {
+        // 실패 시 다운로드로 fallback
+        window.open(originalPhotos[index], '_blank')
+      }
     }
-    setSaving(false)
+    setSharing(false)
   }
 
   const hasPrev = index > 0
@@ -331,11 +350,11 @@ function PhotoViewer({
           )}
           <button
             type="button"
-            onClick={handleSave}
-            disabled={saving}
+            onClick={handleShare}
+            disabled={sharing}
             className="w-8 h-8 rounded-full bg-white/20 text-white hover:bg-white/30 flex items-center justify-center transition-colors"
           >
-            <Download className={`w-5 h-5 ${saving ? 'animate-pulse' : ''}`} />
+            <Share2 className={`w-5 h-5 ${sharing ? 'animate-pulse' : ''}`} />
           </button>
           <button
             type="button"
