@@ -11,6 +11,8 @@ import {
   Bell,
   MapPin,
   Eye,
+  Grid3X3,
+  List,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -739,6 +741,20 @@ export default function ListPage() {
   const isEquipment = section === '장비'
   const [showEndedEvents, setShowEndedEvents] = useState(false)
 
+  /* ── 사진 탭 뷰 모드 (localStorage 저장) ── */
+  const [photoViewMode, setPhotoViewMode] = useState<'grid' | 'list'>(() => {
+    const saved = localStorage.getItem('photoViewMode')
+    return (saved === 'list' ? 'list' : 'grid') as 'grid' | 'list'
+  })
+
+  const togglePhotoViewMode = useCallback(() => {
+    setPhotoViewMode((prev) => {
+      const next = prev === 'grid' ? 'list' : 'grid'
+      localStorage.setItem('photoViewMode', next)
+      return next
+    })
+  }, [])
+
   /* 이벤트 목록: 진행중/종료 분리 + 공식 상단 고정 */
   const { ongoingEvents, endedEvents } = useMemo(() => {
     const now = new Date()
@@ -830,19 +846,41 @@ export default function ListPage() {
 
       {/* 정렬 (이벤트/장비 탭에선 숨김) */}
       {!isEvent && !isEquipment && (
-        <div className="shrink-0 flex gap-2 px-4 py-2 bg-white border-b border-gray-200">
-          {SORT_OPTIONS.map((opt) => (
+        <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
+          <div className="flex gap-2">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => { setSort(opt); resetScroll() }}
+                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  sort === opt ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+          {/* 사진 탭 뷰 모드 토글 */}
+          {isPhoto && (
             <button
-              key={opt}
               type="button"
-              onClick={() => { setSort(opt); resetScroll() }}
-              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                sort === opt ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'
-              }`}
+              onClick={togglePhotoViewMode}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
             >
-              {opt}
+              {photoViewMode === 'grid' ? (
+                <>
+                  <Grid3X3 className="w-4 h-4 text-gray-600" />
+                  <span className="text-xs font-medium text-gray-600">그리드</span>
+                </>
+              ) : (
+                <>
+                  <List className="w-4 h-4 text-gray-600" />
+                  <span className="text-xs font-medium text-gray-600">리스트</span>
+                </>
+              )}
             </button>
-          ))}
+          )}
         </div>
       )}
 
@@ -1122,25 +1160,76 @@ export default function ListPage() {
             글이 없습니다.
           </div>
         ) : isPhoto ? (
-          /* ── 사진 탭: 인스타그램 스타일 3x3 그리드 ── */
-          <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
-            {items
-              .filter((item) => item.thumbnail_url)
-              .map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => { saveScrollBeforeNav(); navigate(`/community/${item.id}`) }}
-                  className="relative aspect-square overflow-hidden bg-gray-100"
-                >
-                  <LazyImage
-                    src={getLowQualityImageUrl(item.thumbnail_url!, 50)}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-          </div>
+          /* ── 사진 탭 ── */
+          photoViewMode === 'grid' ? (
+            /* 그리드 뷰: 인스타그램 스타일 3x3 */
+            <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
+              {items
+                .filter((item) => item.thumbnail_url)
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => { saveScrollBeforeNav(); navigate(`/community/${item.id}`) }}
+                    className="relative aspect-square overflow-hidden bg-gray-100"
+                  >
+                    <LazyImage
+                      src={getLowQualityImageUrl(item.thumbnail_url!, 50)}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+            </div>
+          ) : (
+            /* 리스트 뷰: 큰 썸네일 + 상세 정보 */
+            <div className="bg-white">
+              {items
+                .filter((item) => item.thumbnail_url)
+                .map((item) => (
+                  <Link
+                    key={item.id}
+                    to={`/community/${item.id}`}
+                    className="block border-b border-gray-100"
+                    onClick={saveScrollBeforeNav}
+                  >
+                    {/* 큰 썸네일 이미지 */}
+                    <div className="relative w-full aspect-[4/3] bg-gray-100">
+                      <LazyImage
+                        src={getLowQualityImageUrl(item.thumbnail_url!, 70)}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {/* 정보 영역 */}
+                    <div className="px-4 py-3">
+                      <p className="text-sm font-medium text-gray-900 line-clamp-1">
+                        {item.title}
+                        {item.comment_count > 0 && (
+                          <span className="ml-1 text-blue-500 font-medium">
+                            [{item.comment_count}]
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex items-center justify-between mt-1.5 text-xs text-gray-400">
+                        <span>{displayName(item.author_nickname, item.is_anonymous, isAdminMode)}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-0.5">
+                            <Eye className="w-3 h-3" />
+                            {item.view_count}
+                          </span>
+                          <span className="flex items-center gap-0.5">
+                            <ThumbsUp className="w-3 h-3" />
+                            {item.likes_count}
+                          </span>
+                          <span>{relativeTime(item.created_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+            </div>
+          )
         ) : (
           /* ── 기본 목록형 (디시인사이드 스타일) ── */
           <div className="bg-white">
