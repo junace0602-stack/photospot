@@ -54,7 +54,7 @@ interface SpotStat {
   id: string
   title: string
   location: string
-  likes_count: number
+  view_count: number
 }
 
 interface HourlyData {
@@ -220,15 +220,15 @@ function StatsTab() {
         setPopularTags(sortedTags)
       }
 
-      // 인기 출사지 TOP 10
+      // 인기 출사지 TOP 10 (조회수 기준)
       const { data: topSpots } = await supabase
         .from('posts')
-        .select('id, title, location, likes_count')
-        .order('likes_count', { ascending: false })
+        .select('id, title, location, view_count')
+        .order('view_count', { ascending: false })
         .limit(10)
 
       if (topSpots) {
-        setPopularSpots(topSpots)
+        setPopularSpots(topSpots.map(s => ({ ...s, view_count: s.view_count ?? 0 })))
       }
 
       // 시간대별 글 작성 (오늘)
@@ -320,7 +320,7 @@ function StatsTab() {
   }
 
   const tagMax = Math.max(...popularTags.map(t => t.count), 1)
-  const spotMax = Math.max(...popularSpots.map(s => s.likes_count), 1)
+  const spotMax = Math.max(...popularSpots.map(s => s.view_count), 1)
 
   return (
     <div className="p-4 space-y-4">
@@ -364,10 +364,11 @@ function StatsTab() {
         <div className="flex items-center gap-2 mb-3">
           <MapPin className="w-4 h-4 text-red-500" />
           <h3 className="text-sm font-bold text-gray-700">인기 출사지 TOP 10</h3>
+          <span className="text-[10px] text-gray-400">(조회수 기준)</span>
         </div>
         {popularSpots.length > 0 ? (
           <SimpleBarChart
-            data={popularSpots.map(s => ({ label: s.title, value: s.likes_count }))}
+            data={popularSpots.map(s => ({ label: s.title, value: s.view_count }))}
             maxValue={spotMax}
             label=""
           />
@@ -2279,27 +2280,29 @@ export default function AdminPage() {
         </span>
       </header>
 
-      {/* Tabs */}
-      <div className="shrink-0 flex bg-white border-b border-gray-200 overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setActiveTab(t.key)}
-            className={`relative flex-1 py-3 text-sm font-semibold text-center whitespace-nowrap px-2 ${
-              activeTab === t.key
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500'
-            }`}
-          >
-            {t.label}
-            {t.key === 'feedback' && unreadFeedback > 0 && (
-              <span className="absolute -top-0.5 right-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full">
-                {unreadFeedback > 99 ? '99+' : unreadFeedback}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Tabs - 4x2 Grid */}
+      <div className="shrink-0 bg-white border-b border-gray-200 p-3">
+        <div className="grid grid-cols-4 gap-2">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActiveTab(t.key)}
+              className={`relative py-2.5 px-1 text-xs font-semibold text-center rounded-lg transition-colors ${
+                activeTab === t.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {t.label}
+              {t.key === 'feedback' && unreadFeedback > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full">
+                  {unreadFeedback > 99 ? '99+' : unreadFeedback}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Content */}
