@@ -15,8 +15,6 @@ const ALLOWED_EXTENSIONS = new Set([
 
 const THUMBNAIL_SIZE = 400
 const THUMBNAIL_QUALITY = 0.82
-// 원본: 리사이즈 없음, WebP 무손실 (quality 1.0)
-const WEBP_LOSSLESS_QUALITY = 1.0
 
 const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,.webp'
 export { IMAGE_ACCEPT }
@@ -59,15 +57,15 @@ async function convertHeic(file: File): Promise<Blob> {
 }
 
 /**
- * Canvas를 이용해 이미지를 WebP로 변환
- * - maxDim: 최대 크기 (0이면 리사이즈 없음, 원본 해상도 유지)
- * - quality: WebP 품질 (1.0 = 무손실)
- * - crop: true면 중앙 크롭하여 정사각형으로 만듦 (썸네일용)
+ * Canvas를 이용해 이미지를 WebP로 변환 (썸네일 생성용)
+ * - maxDim: 최대 크기
+ * - quality: WebP 품질
+ * - crop: true면 중앙 크롭하여 정사각형으로 만듦
  */
 function toWebP(
   source: Blob,
-  maxDim: number = 0,
-  quality: number = WEBP_LOSSLESS_QUALITY,
+  maxDim: number,
+  quality: number,
   crop: boolean = false,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -126,7 +124,7 @@ function toWebP(
 /**
  * Supabase Storage images 버킷에 업로드 후 공개 URL 반환
  * - 지원 형식: JPEG, PNG, HEIC/HEIF, WEBP
- * - 모든 이미지를 WebP 무손실로 변환 (원본 해상도 유지)
+ * - 원본 그대로 업로드 (변환 없음)
  * @deprecated uploadImageWithThumbnail 사용 권장
  */
 export async function uploadImage(file: File): Promise<string> {
@@ -136,7 +134,8 @@ export async function uploadImage(file: File): Promise<string> {
 
 /**
  * 이미지 + 썸네일(400x400)을 함께 업로드
- * - 원본: WebP 무손실 (리사이즈 없음, quality 100%)
+ * - 원본: 변환 없이 그대로 업로드 (JPEG/PNG/WebP 원본 유지)
+ * - HEIC만 JPEG로 변환 (브라우저 호환성)
  * - 썸네일: 400x400px 중앙 크롭, WebP 82% 품질
  */
 export async function uploadImageWithThumbnail(file: File): Promise<UploadResult> {
@@ -155,28 +154,30 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
     )
   }
 
-  // 3. HEIC 변환 (필요 시)
-  let source: Blob = file
+  // 3. 원본 처리: HEIC만 JPEG로 변환, 나머지는 그대로
+  let originalBlob: Blob = file
+  let originalExt = getExtension(file.name) || 'jpg'
+  let originalContentType = file.type || 'image/jpeg'
+
   if (isHeic(file)) {
-    source = await convertHeic(file)
+    originalBlob = await convertHeic(file)
+    originalExt = 'jpg'
+    originalContentType = 'image/jpeg'
   }
 
-  // 4. 원본 WebP 무손실 변환 (리사이즈 없음)
-  const blob = await toWebP(source, 0, WEBP_LOSSLESS_QUALITY, false)
+  // 4. 썸네일 생성 (400x400 중앙 크롭, WebP)
+  const thumbBlob = await toWebP(originalBlob, THUMBNAIL_SIZE, THUMBNAIL_QUALITY, true)
 
-  // 5. 썸네일 생성 (400x400 중앙 크롭)
-  const thumbBlob = await toWebP(source, THUMBNAIL_SIZE, THUMBNAIL_QUALITY, true)
-
-  // 6. 병렬 업로드 (원본 + 썸네일)
+  // 5. 병렬 업로드 (원본 + 썸네일)
   const uuid = crypto.randomUUID()
-  const originalPath = `${uuid}.webp`
+  const originalPath = `${uuid}.${originalExt}`
   const thumbPath = `thumb/${uuid}.webp`
 
   const [origResult, thumbResult] = await Promise.all([
     supabase.storage
       .from('images')
-      .upload(originalPath, blob, {
-        contentType: 'image/webp',
+      .upload(originalPath, originalBlob, {
+        contentType: originalContentType,
         cacheControl: '31536000',
       }),
     supabase.storage
