@@ -16,6 +16,7 @@ import {
   Bookmark,
   Clock,
   Moon,
+  Image,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
@@ -99,6 +100,18 @@ function LoggedInView() {
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const isAdmin = role === 'superadmin' || role === 'admin'
+
+  // 이미지 화질 설정
+  const [imageQuality, setImageQuality] = useState<'fast' | 'original'>(() => {
+    const saved = localStorage.getItem('imageQuality')
+    return saved === 'original' ? 'original' : 'fast'
+  })
+
+  const toggleImageQuality = useCallback(() => {
+    const newValue = imageQuality === 'fast' ? 'original' : 'fast'
+    setImageQuality(newValue)
+    localStorage.setItem('imageQuality', newValue)
+  }, [imageQuality])
 
   const [stats, setStats] = useState<UserStats>({
     postsCount: 0,
@@ -469,6 +482,33 @@ function LoggedInView() {
                 <div
                   className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
                     isDark ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </div>
+            </button>
+            {/* 이미지 화질 설정 */}
+            <button
+              type="button"
+              onClick={toggleImageQuality}
+              className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Image className="w-5 h-5 text-gray-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-800">이미지 화질</span>
+                  <span className="text-xs text-gray-400">
+                    {imageQuality === 'original' ? '원본 화질 (데이터 사용량 증가)' : '빠르게 보기 (최적화된 화질)'}
+                  </span>
+                </div>
+              </div>
+              <div
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  imageQuality === 'original' ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                    imageQuality === 'original' ? 'translate-x-[22px]' : 'translate-x-0.5'
                   }`}
                 />
               </div>

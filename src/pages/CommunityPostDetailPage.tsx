@@ -31,6 +31,9 @@ import {
   Calendar,
   Aperture,
   Loader2,
+  Download,
+  Square,
+  CheckSquare,
 } from 'lucide-react'
 
 /* ── 이미지 최적화 URL ─────────────────────────────── */
@@ -108,11 +111,13 @@ function normalizeExifData(
 
 function PhotoViewer({
   photos,
+  originalPhotos,
   startIndex,
   onClose,
   exifDataList,
 }: {
   photos: string[]
+  originalPhotos: string[]
   startIndex: number
   onClose: () => void
   exifDataList?: (ExifData | null)[] | null
@@ -120,6 +125,15 @@ function PhotoViewer({
   const [index, setIndex] = useState(startIndex)
   const [showExif, setShowExif] = useState(false)
   const [loadingImages, setLoadingImages] = useState<Set<number>>(new Set([startIndex]))
+
+  // 원본 화질 체크박스 상태 (localStorage 설정을 기본값으로)
+  const [useOriginal, setUseOriginal] = useState(() => {
+    const saved = localStorage.getItem('imageQuality')
+    return saved === 'original'
+  })
+
+  // 저장 중 상태
+  const [saving, setSaving] = useState(false)
 
   // 현재 사진의 EXIF 데이터
   const currentExif = exifDataList?.[index] ?? null
@@ -138,10 +152,36 @@ function PhotoViewer({
   const lastPositionRef = useRef({ x: 0, y: 0 })
   const swipeStartXRef = useRef(0)
 
+  // 현재 표시할 이미지 URL (원본 또는 최적화)
+  const displayPhotos = useOriginal ? originalPhotos : photos
+
+  // 이미지 저장 함수
+  const handleSave = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      const imageUrl = originalPhotos[index]
+      const response = await fetch(imageUrl)
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `photo_${index + 1}.${blob.type.includes('webp') ? 'webp' : blob.type.includes('png') ? 'png' : 'jpg'}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch {
+      // 다운로드 실패 시 새 탭에서 열기
+      window.open(originalPhotos[index], '_blank')
+    }
+    setSaving(false)
+  }
+
   const hasPrev = index > 0
-  const hasNext = index < photos.length - 1
+  const hasNext = index < displayPhotos.length - 1
   const prev = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index - 1)); setIndex((i) => Math.max(0, i - 1)) }
-  const next = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index + 1)); setIndex((i) => Math.min(photos.length - 1, i + 1)) }
+  const next = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index + 1)); setIndex((i) => Math.min(displayPhotos.length - 1, i + 1)) }
 
   const handleImageLoad = (idx: number) => {
     setLoadingImages((s) => { const n = new Set(s); n.delete(idx); return n })
@@ -189,7 +229,7 @@ function PhotoViewer({
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose, photos.length, showExif, scale])
+  }, [onClose, displayPhotos.length, showExif, scale])
 
   // 두 손가락 사이 거리 계산
   const getDistance = (touches: React.TouchList) => {
@@ -288,10 +328,19 @@ function PhotoViewer({
       className="fixed inset-0 z-50 bg-black flex flex-col"
       style={{ overscrollBehavior: 'none', touchAction: 'none' }}
     >
+      {/* 헤더: 뒤로가기 | 페이지 | 저장+원본 */}
       <div className="flex items-center justify-between px-4 py-3">
+        {/* 왼쪽: 뒤로가기 */}
+        <button type="button" onClick={onClose} className="w-10">
+          <ArrowLeft className="w-6 h-6 text-white" />
+        </button>
+
+        {/* 중앙: 페이지 표시 */}
         <span className="text-white text-sm font-medium">
-          {index + 1} / {photos.length}
+          {index + 1} / {displayPhotos.length}
         </span>
+
+        {/* 오른쪽: EXIF + 저장 + 원본 체크박스 */}
         <div className="flex items-center gap-2">
           {hasExifData(currentExif) && (
             <button
@@ -304,8 +353,21 @@ function PhotoViewer({
               <Info className="w-5 h-5" />
             </button>
           )}
-          <button type="button" onClick={onClose}>
-            <X className="w-6 h-6 text-white" />
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="w-8 h-8 rounded-full bg-white/20 text-white hover:bg-white/30 flex items-center justify-center transition-colors"
+          >
+            <Download className={`w-5 h-5 ${saving ? 'animate-pulse' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setUseOriginal(!useOriginal)}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 text-white text-xs hover:bg-white/30 transition-colors"
+          >
+            {useOriginal ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+            <span>원본</span>
           </button>
         </div>
       </div>
@@ -324,7 +386,7 @@ function PhotoViewer({
           </div>
         )}
         <img
-          src={photos[index]}
+          src={displayPhotos[index]}
           alt={`사진 ${index + 1}`}
           className={`max-w-full max-h-full object-contain select-none ${loadingImages.has(index) ? 'opacity-0' : 'opacity-100'}`}
           style={{
@@ -414,7 +476,7 @@ function PhotoViewer({
         )}
       </div>
       <div className="flex justify-center gap-1.5 pb-6">
-        {photos.map((_, i) => (
+        {displayPhotos.map((_, i) => (
           <span
             key={i}
             className={`w-1.5 h-1.5 rounded-full ${i === index ? 'bg-white' : 'bg-white/40'}`}
@@ -770,7 +832,9 @@ export default function CommunityPostDetailPage() {
     )
   }
 
-  const photos = post.image_urls ?? []
+  const originalPhotos = post.image_urls ?? []
+  // 최적화된 사진 (1200px, 85% 품질)
+  const optimizedPhotos = originalPhotos.map((url) => getOptimizedImageUrl(url, 1200, 85))
 
   // YouTube URL 추출
   const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/g
@@ -889,7 +953,7 @@ export default function CommunityPostDetailPage() {
               </div>
             ))}
 
-            {photos.map((url, i) => (
+            {originalPhotos.map((url, i) => (
               <button
                 key={i}
                 type="button"
@@ -1117,12 +1181,13 @@ export default function CommunityPostDetailPage() {
       </div>
 
       {/* Photo viewer overlay */}
-      {viewerIndex !== null && photos.length > 0 && (
+      {viewerIndex !== null && originalPhotos.length > 0 && (
         <PhotoViewer
-          photos={photos}
+          photos={optimizedPhotos}
+          originalPhotos={originalPhotos}
           startIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
-          exifDataList={normalizeExifData(post?.exif_data, photos.length)}
+          exifDataList={normalizeExifData(post?.exif_data, originalPhotos.length)}
         />
       )}
 
