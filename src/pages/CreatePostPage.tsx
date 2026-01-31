@@ -223,15 +223,17 @@ export default function CreatePostPage() {
     registerNewPlace()
   }, [initialSpotId, queryLat, queryLng, queryName])
 
-  // 진행 중인 챌린지 목록 fetch
+  // 진행 중인 챌린지 목록 fetch (한국 시간 기준)
   useEffect(() => {
-    const now = new Date().toISOString().slice(0, 10)
+    // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD)
+    const now = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
     supabase
       .from('events')
-      .select('id, title, end_date')
+      .select('id, title, start_date, end_date')
       .eq('status', 'approved')
-      .gte('end_date', now)
-      .order('created_at', { ascending: false })
+      .lte('start_date', now)  // 시작됨
+      .gte('end_date', now)    // 아직 종료 안됨
+      .order('end_date', { ascending: true })  // 마감 임박 순
       .then(({ data }) => {
         if (data) setChallenges(data.map((e) => ({ id: e.id, title: e.title })))
       })
@@ -866,28 +868,17 @@ export default function CreatePostPage() {
 
         // 챌린지 참여 시 entries_count 증가
         if (boardType === '사진' && selectedChallengeId) {
-          await supabase.rpc('increment_field', {
-            table_name: 'events',
-            row_id: selectedChallengeId,
-            field_name: 'entries_count',
-            amount: 1,
-          }).then(({ error: rpcError }) => {
-            if (rpcError) {
-              return supabase
-                .from('events')
-                .select('entries_count')
-                .eq('id', selectedChallengeId)
-                .single()
-                .then(({ data }) => {
-                  if (data) {
-                    return supabase
-                      .from('events')
-                      .update({ entries_count: (data.entries_count ?? 0) + 1 })
-                      .eq('id', selectedChallengeId)
-                  }
-                })
-            }
-          })
+          const { data: eventData } = await supabase
+            .from('events')
+            .select('entries_count')
+            .eq('id', selectedChallengeId)
+            .single()
+          if (eventData) {
+            await supabase
+              .from('events')
+              .update({ entries_count: (eventData.entries_count ?? 0) + 1 })
+              .eq('id', selectedChallengeId)
+          }
         }
 
         navigate(`/list?tab=${encodeURIComponent(boardType)}`, { replace: true })

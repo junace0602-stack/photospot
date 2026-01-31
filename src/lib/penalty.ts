@@ -91,7 +91,7 @@ export async function checkSuspension(userId: string): Promise<SuspensionStatus>
     const now = new Date().toISOString()
 
     // 현재 유효한 정지 제재 조회 (경고 제외)
-    const { data: penalty, error } = await supabase
+    const { data: penalty } = await supabase
       .from('user_penalties')
       .select('expires_at')
       .eq('user_id', userId)
@@ -99,9 +99,9 @@ export async function checkSuspension(userId: string): Promise<SuspensionStatus>
       .or(`expires_at.gt.${now},expires_at.eq.9999-12-31T23:59:59+00:00`)
       .order('expires_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    if (error || !penalty?.expires_at) {
+    if (!penalty?.expires_at) {
       return { isSuspended: false, suspendedUntil: null, message: null }
     }
 
