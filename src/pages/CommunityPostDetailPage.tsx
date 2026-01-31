@@ -523,21 +523,24 @@ export default function CommunityPostDetailPage() {
     localStorage.setItem('recentPosts', JSON.stringify(updated))
   }, [postId])
 
-  // 조회수 증가 (낙관적 UI + 단일 호출)
+  // 조회수 증가 (페이지 진입 시 1회만)
+  const viewCountUpdatedRef = useRef(false)
   useEffect(() => {
-    if (!postId || !post) return
+    if (!postId || !post || viewCountUpdatedRef.current) return
+    viewCountUpdatedRef.current = true
 
-    const currentCount = post.view_count ?? 0
+    const newCount = (post.view_count ?? 0) + 1
 
     // 낙관적 UI: 즉시 +1 표시
-    setPost((prev) => prev ? { ...prev, view_count: currentCount + 1 } : prev)
+    setPost((prev) => prev ? { ...prev, view_count: newCount } : prev)
 
-    // 백그라운드에서 DB 업데이트 (단일 호출)
+    // 백그라운드에서 DB 업데이트
     supabase
       .from('community_posts')
-      .update({ view_count: currentCount + 1 })
+      .update({ view_count: newCount })
       .eq('id', postId)
-  }, [postId, post?.id])
+      .then()
+  }, [postId, post])
 
   const toggleLike = useCallback(async () => {
     if (!loggedIn || !user || !postId || likeLoading) return
