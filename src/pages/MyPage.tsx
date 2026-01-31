@@ -238,6 +238,35 @@ function LoggedInView() {
   const [checking, setChecking] = useState(false)
   const [nickAvailable, setNickAvailable] = useState<boolean | null>(null)
   const [saving, setSaving] = useState(false)
+  const [nicknameChangedAt, setNicknameChangedAt] = useState<string | null>(null)
+
+  // 닉네임 변경 쿨타임 계산 (30일)
+  const NICKNAME_COOLDOWN_DAYS = 30
+  const cooldownInfo = (() => {
+    if (!nicknameChangedAt) return { canChange: true, daysLeft: 0 }
+    const changedDate = new Date(nicknameChangedAt)
+    const now = new Date()
+    const diffMs = now.getTime() - changedDate.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const daysLeft = NICKNAME_COOLDOWN_DAYS - diffDays
+    return { canChange: daysLeft <= 0, daysLeft: Math.max(0, daysLeft) }
+  })()
+
+  // 프로필에서 nickname_changed_at 로드
+  useEffect(() => {
+    if (!user) return
+    const loadNicknameChangedAt = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('nickname_changed_at')
+        .eq('id', user.id)
+        .single()
+      if (data) {
+        setNicknameChangedAt(data.nickname_changed_at)
+      }
+    }
+    loadNicknameChangedAt()
+  }, [user])
 
   useEffect(() => {
     if (!editing) return
@@ -268,10 +297,14 @@ function LoggedInView() {
   }, [editNickname, editing, profile?.nickname, user?.id])
 
   const startEdit = useCallback(() => {
+    if (!cooldownInfo.canChange) {
+      toast.error(`닉네임 변경까지 ${cooldownInfo.daysLeft}일 남았습니다.`)
+      return
+    }
     setEditNickname(profile?.nickname ?? '')
     setNickAvailable(null)
     setEditing(true)
-  }, [profile?.nickname])
+  }, [profile?.nickname, cooldownInfo.canChange, cooldownInfo.daysLeft])
 
   const cancelEdit = useCallback(() => {
     setEditing(false)
@@ -283,9 +316,24 @@ function LoggedInView() {
     const trimmed = editNickname.trim()
     if (!user || trimmed.length < 2 || nickAvailable !== true) return
     setSaving(true)
+
+    const oldNickname = profile?.nickname ?? ''
+    const now = new Date().toISOString()
+
+    // 닉네임 변경 기록 저장
+    if (oldNickname) {
+      await supabase.from('nickname_history').insert({
+        user_id: user.id,
+        old_nickname: oldNickname,
+        new_nickname: trimmed,
+        changed_at: now,
+      })
+    }
+
+    // 프로필 업데이트 (닉네임 + 변경일시)
     const { error } = await supabase
       .from('profiles')
-      .update({ nickname: trimmed })
+      .update({ nickname: trimmed, nickname_changed_at: now })
       .eq('id', user.id)
     setSaving(false)
     if (error) {
@@ -296,6 +344,7 @@ function LoggedInView() {
       toast.error('저장에 실패했습니다: ' + error.message)
       return
     }
+    setNicknameChangedAt(now)
     await refreshProfile()
     setEditing(false)
     toast.success('닉네임이 변경되었습니다.')
@@ -326,6 +375,9 @@ function LoggedInView() {
                 autoFocus
                 className="w-full px-3 py-2 bg-white rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-300"
               />
+              <p className="text-[10px] text-white/50 mt-1">
+                닉네임은 30일에 한 번만 변경할 수 있습니다.
+              </p>
               {checking && (
                 <p className="text-xs text-white/70 mt-1">중복 확인 중...</p>
               )}
@@ -372,14 +424,30 @@ function LoggedInView() {
               <p className="text-sm text-white/70 mt-0.5 truncate">
                 {user?.email ?? ''}
               </p>
-              <button
-                type="button"
-                onClick={startEdit}
-                className="mt-2 flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs text-white transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                프로필 수정
-              </button>
+              {cooldownInfo.canChange ? (
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  className="mt-2 flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs text-white transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  프로필 수정
+                </button>
+              ) : (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    disabled
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white/10 rounded-lg text-xs text-white/50 cursor-not-allowed"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    프로필 수정
+                  </button>
+                  <p className="text-[10px] text-white/50 mt-1">
+                    다음 변경까지 {cooldownInfo.daysLeft}일 남음
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

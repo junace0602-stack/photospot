@@ -28,6 +28,7 @@ import {
   BarChart3,
   Bell,
   Send,
+  History,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
@@ -2599,9 +2600,194 @@ function NotifyTab() {
   )
 }
 
+// ── 닉네임 히스토리 탭 ──
+
+interface NicknameHistoryItem {
+  id: string
+  user_id: string
+  old_nickname: string
+  new_nickname: string
+  changed_at: string
+}
+
+interface UserProfile {
+  id: string
+  nickname: string
+  nickname_changed_at: string | null
+}
+
+function NicknameHistoryTab() {
+  const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<UserProfile[]>([])
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
+  const [history, setHistory] = useState<NicknameHistoryItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [searching, setSearching] = useState(false)
+
+  // 유저 검색
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed.length < 2) {
+      setSearchResults([])
+      return
+    }
+    setSearching(true)
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, nickname, nickname_changed_at')
+        .ilike('nickname', `%${trimmed}%`)
+        .limit(10)
+      setSearchResults(data ?? [])
+      setSearching(false)
+    }, 300)
+    return () => {
+      clearTimeout(timer)
+      setSearching(false)
+    }
+  }, [query])
+
+  // 선택된 유저의 닉네임 히스토리 로드
+  useEffect(() => {
+    if (!selectedUser) {
+      setHistory([])
+      return
+    }
+    const loadHistory = async () => {
+      setLoading(true)
+      const { data } = await supabase
+        .from('nickname_history')
+        .select('*')
+        .eq('user_id', selectedUser.id)
+        .order('changed_at', { ascending: false })
+      setHistory(data ?? [])
+      setLoading(false)
+    }
+    loadHistory()
+  }, [selectedUser])
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* 검색 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <h3 className="font-bold text-gray-900 mb-3">유저 검색</h3>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="닉네임으로 검색..."
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {/* 검색 결과 드롭다운 */}
+          {searchResults.length > 0 && (
+            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {searchResults.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedUser(user)
+                    setSearchResults([])
+                    setQuery('')
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Users className="w-4 h-4 text-gray-400" />
+                  {user.nickname}
+                </button>
+              ))}
+            </div>
+          )}
+          {searching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 선택된 유저 정보 */}
+      {selectedUser && (
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-gray-900">선택된 유저</h3>
+            <button
+              type="button"
+              onClick={() => setSelectedUser(null)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              선택 해제
+            </button>
+          </div>
+          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+            <Users className="w-8 h-8 text-gray-400" />
+            <div>
+              <p className="font-semibold text-gray-900">{selectedUser.nickname}</p>
+              <p className="text-xs text-gray-500">
+                {selectedUser.nickname_changed_at
+                  ? `마지막 변경: ${new Date(selectedUser.nickname_changed_at).toLocaleDateString('ko-KR')}`
+                  : '닉네임 변경 기록 없음'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 닉네임 변경 히스토리 */}
+      {selectedUser && (
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <History className="w-4 h-4 text-gray-400" />
+            <h3 className="font-bold text-gray-900">닉네임 변경 기록</h3>
+          </div>
+          {loading ? (
+            <div className="text-center py-6 text-sm text-gray-400">불러오는 중...</div>
+          ) : history.length === 0 ? (
+            <div className="text-center py-6 text-sm text-gray-400">변경 기록이 없습니다.</div>
+          ) : (
+            <div className="space-y-2">
+              {history.map((item) => (
+                <div key={item.id} className="border border-gray-100 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-red-500 line-through">{item.old_nickname}</span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-green-600 font-medium">{item.new_nickname}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">
+                      {new Date(item.changed_at).toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 안내 */}
+      {!selectedUser && (
+        <div className="bg-blue-50 rounded-xl p-4">
+          <p className="text-sm text-blue-600">
+            닉네임으로 유저를 검색하여 닉네임 변경 기록을 확인할 수 있습니다.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main ──
 
-type TabKey = 'stats' | 'reports' | 'hidden' | 'reporters' | 'events' | 'feedback' | 'ban' | 'notify'
+type TabKey = 'stats' | 'reports' | 'hidden' | 'reporters' | 'events' | 'feedback' | 'ban' | 'notify' | 'nickname'
 
 const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
   { key: 'stats', label: '통계', superOnly: true },
@@ -2612,6 +2798,7 @@ const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
   { key: 'feedback', label: '건의 관리', superOnly: true },
   { key: 'ban', label: '유저 제재', superOnly: true },
   { key: 'notify', label: '알림 보내기', superOnly: true },
+  { key: 'nickname', label: '닉네임 기록', superOnly: true },
 ]
 
 export default function AdminPage() {
@@ -2686,6 +2873,7 @@ export default function AdminPage() {
         {activeTab === 'feedback' && isSuperAdmin && <FeedbackTab onUnreadCount={setUnreadFeedback} />}
         {activeTab === 'ban' && isSuperAdmin && <BanTab />}
         {activeTab === 'notify' && isSuperAdmin && <NotifyTab />}
+        {activeTab === 'nickname' && isSuperAdmin && <NicknameHistoryTab />}
       </div>
     </div>
   )

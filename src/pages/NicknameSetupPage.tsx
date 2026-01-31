@@ -88,6 +88,10 @@ export default function NicknameSetupPage() {
           className="w-full px-4 py-3 bg-gray-100 rounded-xl text-sm outline-none"
         />
 
+        <p className="text-xs text-gray-400">
+          닉네임은 30일에 한 번만 변경할 수 있습니다.
+        </p>
+
         {checking && (
           <p className="text-sm text-gray-400">중복 확인 중...</p>
         )}
