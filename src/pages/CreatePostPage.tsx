@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy, AlertTriangle, LocateFixed } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImageWithThumbnail, IMAGE_ACCEPT } from '../lib/imageUpload'
 import { moderateText, checkDuplicatePost } from '../lib/moderation'
@@ -167,6 +167,17 @@ export default function CreatePostPage() {
   const [newPlaceLng, setNewPlaceLng] = useState(126.978)
   const [savingPlace, setSavingPlace] = useState(false)
   const newPlaceMapRef = useRef<HTMLDivElement>(null)
+
+  // GPS 위치 등록
+  const [showGpsModal, setShowGpsModal] = useState(false)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [gpsLat, setGpsLat] = useState(37.5665)
+  const [gpsLng, setGpsLng] = useState(126.978)
+  const [gpsPlaceName, setGpsPlaceName] = useState('')
+  const [gpsStep, setGpsStep] = useState<'map' | 'name'>('map')
+  const gpsMapRef = useRef<HTMLDivElement>(null)
+  const gpsMarkerRef = useRef<google.maps.Marker | null>(null)
+  const gpsMapInstanceRef = useRef<google.maps.Map | null>(null)
 
   const spotId = initialSpotId || selectedSpotId
 
@@ -440,6 +451,137 @@ export default function CreatePostPage() {
     setSpotName(data.name)
     setPlaceQuery('')
     setShowNewPlace(false)
+  }
+
+  // GPS 버튼 클릭 핸들러
+  const handleGpsClick = async () => {
+    if (!navigator.geolocation) {
+      toast.error('이 브라우저에서는 위치 서비스를 사용할 수 없습니다.')
+      return
+    }
+
+    setGpsLoading(true)
+    setShowResults(false)
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        setGpsLat(latitude)
+        setGpsLng(longitude)
+        setGpsPlaceName('')
+        setGpsStep('map')
+        setShowGpsModal(true)
+        setGpsLoading(false)
+      },
+      (error) => {
+        setGpsLoading(false)
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error('위치 권한이 필요합니다. 브라우저 설정에서 위치 권한을 허용해주세요.')
+            break
+          case error.POSITION_UNAVAILABLE:
+            toast.error('위치 정보를 가져올 수 없습니다.')
+            break
+          case error.TIMEOUT:
+            toast.error('위치 정보 요청 시간이 초과되었습니다.')
+            break
+          default:
+            toast.error('위치 정보를 가져오는 중 오류가 발생했습니다.')
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
+  // GPS 모달 지도 초기화
+  useEffect(() => {
+    if (!showGpsModal || !gpsMapRef.current || gpsStep !== 'map') return
+
+    let cancelled = false
+    ;(async () => {
+      await loadGoogleMaps()
+      if (cancelled || !gpsMapRef.current) return
+
+      const map = new google.maps.Map(gpsMapRef.current, {
+        center: { lat: gpsLat, lng: gpsLng },
+        zoom: 16,
+        zoomControl: true,
+        zoomControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
+      })
+      gpsMapInstanceRef.current = map
+
+      const marker = new google.maps.Marker({
+        position: { lat: gpsLat, lng: gpsLng },
+        map,
+        draggable: true,
+      })
+      gpsMarkerRef.current = marker
+
+      map.addListener('click', (e: google.maps.MapMouseEvent) => {
+        marker.setPosition(e.latLng!)
+        setGpsLat(e.latLng!.lat())
+        setGpsLng(e.latLng!.lng())
+      })
+      marker.addListener('dragend', () => {
+        const pos = marker.getPosition()!
+        setGpsLat(pos.lat())
+        setGpsLng(pos.lng())
+      })
+    })()
+
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGpsModal, gpsStep])
+
+  // GPS 위치 확인 후 이름 입력 단계로
+  const handleGpsConfirmLocation = () => {
+    setGpsStep('name')
+  }
+
+  // GPS 장소 저장
+  const handleGpsSavePlace = async () => {
+    if (!gpsPlaceName.trim() || savingPlace) return
+    setSavingPlace(true)
+
+    // 역지오코딩으로 주소 정보 조회
+    const geoResult = await reverseGeocode(gpsLat, gpsLng)
+
+    const placeRow: Record<string, unknown> = {
+      name: gpsPlaceName.trim(),
+      lat: gpsLat,
+      lng: gpsLng,
+      is_domestic: isDomestic,
+    }
+    // 주소 정보 추가
+    if (geoResult) {
+      if (geoResult.address) placeRow.address = geoResult.address
+      if (geoResult.region) placeRow.region = geoResult.region
+      if (geoResult.district) placeRow.district = geoResult.district
+      // 해외인 경우 country도 저장
+      if (!isDomestic && geoResult.country) {
+        placeRow.country = geoResult.country
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('places')
+      .insert(placeRow)
+      .select('id, name')
+      .single()
+
+    setSavingPlace(false)
+
+    if (error) {
+      toast.error('장소 등록 실패: ' + error.message)
+      return
+    }
+
+    setSelectedSpotId(data.id)
+    setSpotName(data.name)
+    setPlaceQuery('')
+    setShowGpsModal(false)
+    setGpsStep('map')
+    toast.success(`"${data.name}" 장소가 등록되었습니다.`)
   }
 
   const [title, setTitle] = useState('')
@@ -1111,6 +1253,20 @@ export default function CreatePostPage() {
                     placeholder="장소명을 검색하세요"
                     className="flex-1 text-sm bg-transparent outline-none placeholder:text-gray-400"
                   />
+                  {/* GPS 버튼 */}
+                  <button
+                    type="button"
+                    onClick={handleGpsClick}
+                    disabled={gpsLoading}
+                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                    title="현재 위치로 등록"
+                  >
+                    {gpsLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <LocateFixed className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
                 {showResults && (
                   <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
@@ -1523,6 +1679,93 @@ export default function CreatePostPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* GPS 위치 등록 모달 */}
+      {showGpsModal && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (gpsStep === 'name') {
+                    setGpsStep('map')
+                  } else {
+                    setShowGpsModal(false)
+                  }
+                }}
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </button>
+              <h1 className="text-lg font-bold">
+                {gpsStep === 'map' ? '위치 확인' : '장소 이름 입력'}
+              </h1>
+            </div>
+            {gpsStep === 'name' && (
+              <button
+                type="button"
+                onClick={handleGpsSavePlace}
+                disabled={!gpsPlaceName.trim() || savingPlace}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${
+                  gpsPlaceName.trim() && !savingPlace
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-400'
+                }`}
+              >
+                {savingPlace ? '등록 중...' : '완료'}
+              </button>
+            )}
+          </header>
+
+          {gpsStep === 'map' ? (
+            <div className="flex-1 flex flex-col">
+              <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+                <p className="text-sm text-blue-700">
+                  📍 핀을 드래그하거나 지도를 터치해서 정확한 위치를 지정하세요
+                </p>
+              </div>
+              <div ref={gpsMapRef} className="flex-1" />
+              <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
+                <p className="text-xs text-gray-400 mb-3 text-center">
+                  위도 {gpsLat.toFixed(5)}, 경도 {gpsLng.toFixed(5)}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGpsConfirmLocation}
+                  className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
+                >
+                  이 위치 선택
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-4 py-6 space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">장소 이름</p>
+                  <input
+                    type="text"
+                    value={gpsPlaceName}
+                    onChange={(e) => setGpsPlaceName(e.target.value)}
+                    placeholder="예: 알마티 중앙공원, 이스탄불 블루모스크 앞"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base outline-none focus:border-blue-500"
+                    autoFocus
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    나중에 다른 사람들이 검색할 수 있도록 알기 쉬운 이름을 지어주세요
+                  </p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-500">선택한 위치</p>
+                  <p className="text-sm text-gray-700 mt-1">
+                    위도 {gpsLat.toFixed(5)}, 경도 {gpsLng.toFixed(5)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
