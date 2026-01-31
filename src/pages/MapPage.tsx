@@ -636,7 +636,7 @@ export default function MapPage() {
   // 정적 style — React가 직접 DOM 조작을 덮어쓰지 않도록 고정
   // will-change는 드래그 중에만 동적으로 적용 (상시 적용 시 메모리 낭비)
   const sheetStyle = useMemo(
-    () => ({ transform: 'translateY(87vh)', maxHeight: '13vh' }),
+    () => ({ transform: 'translateY(87vh)', height: '13vh' }),
     [],
   )
 
@@ -662,11 +662,11 @@ export default function MapPage() {
       el.style.transition = 'none'
       skipTransitionRef.current = false
     } else {
-      el.style.transition = 'transform 0.3s ease-out, max-height 0.3s ease-out'
+      el.style.transition = 'transform 0.3s ease-out, height 0.3s ease-out'
     }
 
     el.style.transform = `translateY(${px}px)`
-    el.style.maxHeight = `${window.innerHeight - px}px`
+    el.style.height = `${window.innerHeight - px}px`
     currentTopRef.current = px
   }, [snappedTop, snapToPx])
 
@@ -1543,8 +1543,8 @@ export default function MapPage() {
     const el = sheetRef.current
     if (el) {
       el.style.transition = 'none'
-      el.style.willChange = 'transform'
-      el.style.maxHeight = `${window.innerHeight}px`
+      el.style.willChange = 'transform, height'
+      el.style.height = `${window.innerHeight}px`
     }
     // 드래그 중 목록 스크롤 비활성화 → 터치 이벤트 충돌 방지
     if (listRef.current) listRef.current.style.overflowY = 'hidden'
@@ -1558,7 +1558,10 @@ export default function MapPage() {
     const newTop = Math.max(0, Math.min(maxTop, dragRef.current.startTopPx + dy))
     currentTopRef.current = newTop
     const el = sheetRef.current
-    if (el) el.style.transform = `translateY(${newTop}px)`
+    if (el) {
+      el.style.transform = `translateY(${newTop}px)`
+      el.style.height = `${vh - newTop}px`
+    }
     rafRef.current = 0
   }, [])
 
@@ -1604,9 +1607,9 @@ export default function MapPage() {
     // 부드러운 transition 후 스냅
     const el = sheetRef.current
     if (el) {
-      el.style.transition = 'transform 0.3s ease-out, max-height 0.3s ease-out'
+      el.style.transition = 'transform 0.3s ease-out, height 0.3s ease-out'
       el.style.transform = `translateY(${snapPx}px)`
-      el.style.maxHeight = `${window.innerHeight - snapPx}px`
+      el.style.height = `${window.innerHeight - snapPx}px`
       // transition 종료 후 will-change 해제 → 메모리 반환
       const onEnd = () => {
         el.style.willChange = ''
@@ -1805,7 +1808,7 @@ export default function MapPage() {
       {/* ── 하단 시트 — absolute overlay, transform으로 이동 ── */}
       <div
         ref={sheetRef}
-        className={`absolute inset-0 z-20 bg-white shadow-xl flex flex-col ${
+        className={`absolute left-0 right-0 top-0 z-20 bg-white shadow-xl flex flex-col ${
           snappedTop > 5 ? 'rounded-t-2xl' : ''
         }`}
         style={sheetStyle}
