@@ -8,6 +8,7 @@ import {
   Search,
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
   X,
   Crosshair,
   Loader2,
@@ -134,6 +135,42 @@ const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }
   '오만': { lat: 21.5, lng: 55.9, zoom: 6 },
   '탄자니아': { lat: -6.4, lng: 34.9, zoom: 5 },
   '케냐': { lat: -0.02, lng: 37.9, zoom: 6 },
+}
+
+/* ── 해외 나라 목록 및 국기 이모지 ── */
+const DISPLAY_COUNTRIES = [
+  '일본', '대만', '태국', '베트남', '미국', '중국', '프랑스', '영국',
+  '이탈리아', '스페인', '독일', '호주', '캐나다', '싱가포르', '홍콩',
+  '인도네시아', '필리핀', '말레이시아', '인도', '터키', '이집트',
+  '스위스', '체코', '네덜란드', '뉴질랜드',
+] as const
+
+const COUNTRY_FLAGS: Record<string, string> = {
+  '일본': '🇯🇵',
+  '대만': '🇹🇼',
+  '태국': '🇹🇭',
+  '베트남': '🇻🇳',
+  '미국': '🇺🇸',
+  '중국': '🇨🇳',
+  '프랑스': '🇫🇷',
+  '영국': '🇬🇧',
+  '이탈리아': '🇮🇹',
+  '스페인': '🇪🇸',
+  '독일': '🇩🇪',
+  '호주': '🇦🇺',
+  '캐나다': '🇨🇦',
+  '싱가포르': '🇸🇬',
+  '홍콩': '🇭🇰',
+  '인도네시아': '🇮🇩',
+  '필리핀': '🇵🇭',
+  '말레이시아': '🇲🇾',
+  '인도': '🇮🇳',
+  '터키': '🇹🇷',
+  '이집트': '🇪🇬',
+  '스위스': '🇨🇭',
+  '체코': '🇨🇿',
+  '네덜란드': '🇳🇱',
+  '뉴질랜드': '🇳🇿',
 }
 
 /* ── 국내 시/도 및 구/군 데이터 ── */
@@ -346,7 +383,6 @@ const COUNTRY_ALIASES: Record<string, string[]> = {
   '탄자니아': ['tanzania', 'tz'],
   '케냐': ['kenya', 'ke'],
 }
-const ALL_KNOWN_COUNTRIES = Object.keys(COUNTRY_ALIASES)
 
 function createPinContent(count: number): HTMLDivElement {
   let fill: string
@@ -944,11 +980,11 @@ export default function MapPage() {
     return items
   }, [places, userPos, placeStats, searchQuery, listSort, region, countryFilter, provinceFilter, districtFilter, tagsFilter])
 
-  // 나라 검색 결과 (모든 알려진 나라에서 검색)
+  // 나라 검색 결과 (표시할 나라 목록에서 검색)
   const filteredCountries = useMemo(() => {
     const q = countrySearch.trim()
-    if (!q) return []
-    return ALL_KNOWN_COUNTRIES.filter((c) => matchesCountry(c, q))
+    if (!q) return [...DISPLAY_COUNTRIES]
+    return DISPLAY_COUNTRIES.filter((c) => matchesCountry(c, q))
   }, [countrySearch])
 
   // 나라별 출사지/글 통계
@@ -969,7 +1005,8 @@ export default function MapPage() {
     return stats
   }, [places, placeStats])
 
-  const isCountrySearching = region === 'international' && !countryFilter && countrySearch.trim().length > 0
+  // 해외 모드에서 나라 선택 전: 나라 목록 표시
+  const showCountryList = region === 'international' && !countryFilter
 
   // Google Places 검색 (DB에 결과 없을 때) - New API 사용
   useEffect(() => {
@@ -1196,7 +1233,7 @@ export default function MapPage() {
   const handleCountryClick = useCallback((country: string) => {
     setCountryFilter(country)
     setCountrySearch('')
-    setListSort('popular')
+    setListSort('nearest')
   }, [])
 
   const handleClearCountry = useCallback(() => {
@@ -1705,15 +1742,19 @@ export default function MapPage() {
           <div className="w-10 h-1 rounded-full bg-gray-300" />
         </div>
 
-        {/* 해외 모드: 나라 필터 태그 — 항상 표시 */}
+        {/* 해외 모드: 나라 선택됨 - 뒤로가기 + 나라 이름 헤더 */}
         {region === 'international' && countryFilter && (
           <div className="shrink-0 px-4 pb-2">
-            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-              {countryFilter}
-              <button type="button" onClick={handleClearCountry} className="ml-0.5 hover:text-blue-900">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </span>
+            <button
+              type="button"
+              onClick={handleClearCountry}
+              className="flex items-center gap-2 text-left"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-500" />
+              <span className="text-lg font-bold text-gray-900">
+                {COUNTRY_FLAGS[countryFilter] ?? ''} {countryFilter}
+              </span>
+            </button>
           </div>
         )}
 
@@ -1765,7 +1806,7 @@ export default function MapPage() {
 
         {/* peek 상태에서는 목록/결과 숨김 */}
         {sheetState !== 'peek' && (
-          isCountrySearching ? (
+          showCountryList ? (
             <div ref={listRef} className="flex-1 overflow-y-auto">
               {filteredCountries.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">
@@ -1774,6 +1815,7 @@ export default function MapPage() {
               ) : (
                 filteredCountries.map((country) => {
                   const cs = countryStats.get(country)
+                  const placeCount = cs?.placeCount ?? 0
                   return (
                     <button
                       key={country}
@@ -1781,17 +1823,13 @@ export default function MapPage() {
                       onClick={() => handleCountryClick(country)}
                       className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                        <MapPin className="w-5 h-5 text-blue-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium text-gray-900">{country}</span>
-                        <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
-                          <span>출사지 {cs?.placeCount ?? 0}개</span>
-                          <span>·</span>
-                          <span>글 {cs?.postCount ?? 0}개</span>
-                        </div>
-                      </div>
+                      <span className="text-2xl">{COUNTRY_FLAGS[country] ?? '🌍'}</span>
+                      <span className="flex-1 text-sm font-medium text-gray-900">
+                        {country}
+                        {placeCount > 0 && (
+                          <span className="ml-1.5 text-blue-500">({placeCount})</span>
+                        )}
+                      </span>
                       <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                     </button>
                   )
@@ -1802,7 +1840,7 @@ export default function MapPage() {
             <>
               {/* 정렬 · 필터 */}
               <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
-                {(region === 'international' && countryFilter) || (region === 'domestic' && provinceFilter) ? (
+                {(region === 'domestic' && provinceFilter) ? (
                   <>
                     <button
                       type="button"
