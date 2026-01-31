@@ -1370,6 +1370,18 @@ function EventManageTab() {
   const [winnerSelectEvent, setWinnerSelectEvent] = useState<PendingEvent | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<PendingEvent | null>(null)
 
+  // 우승자 관리 상태 (선택된 챌린지)
+  const [selectedEventForWinners, setSelectedEventForWinners] = useState<PendingEvent | null>(null)
+  const [winners, setWinners] = useState<WinnerItem[]>([])
+  const [loadingWinners, setLoadingWinners] = useState(false)
+
+  // 알림 전송 모달
+  const [notifyModal, setNotifyModal] = useState<{ winner: WinnerItem } | null>(null)
+  const [notifyMessage, setNotifyMessage] = useState('')
+  const [notifyImageFile, setNotifyImageFile] = useState<File | null>(null)
+  const [notifyImagePreview, setNotifyImagePreview] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+
   const loadEvents = async () => {
     setLoadingEvents(true)
     const { data } = await supabase
@@ -1436,6 +1448,124 @@ function EventManageTab() {
     toast.success('우승자가 선정되었습니다!')
   }
 
+  // 특정 챌린지의 우승자 로드
+  const loadWinnersForEvent = async (ev: PendingEvent) => {
+    setSelectedEventForWinners(ev)
+    setLoadingWinners(true)
+
+    const { data: winnersData } = await supabase
+      .from('challenge_winners')
+      .select('*')
+      .eq('challenge_id', ev.id)
+      .order('created_at', { ascending: false })
+
+    if (!winnersData || winnersData.length === 0) {
+      setWinners([])
+      setLoadingWinners(false)
+      return
+    }
+
+    const userIds = [...new Set(winnersData.map(w => w.user_id))]
+    const postIds = [...new Set(winnersData.map(w => w.post_id))]
+
+    const [profilesRes, postsRes] = await Promise.all([
+      supabase.from('profiles').select('id, nickname').in('id', userIds),
+      supabase.from('community_posts').select('id, title').in('id', postIds),
+    ])
+
+    const profileMap = new Map((profilesRes.data ?? []).map(p => [p.id, p.nickname]))
+    const postMap = new Map((postsRes.data ?? []).map(p => [p.id, p.title]))
+
+    const result: WinnerItem[] = winnersData.map(w => ({
+      ...w,
+      challenge_title: ev.title,
+      has_prize: ev.has_prize,
+      prize: ev.prize ?? null,
+      prize_image_url: ev.prize_image_url ?? null,
+      winner_nickname: profileMap.get(w.user_id) ?? '알 수 없음',
+      post_title: postMap.get(w.post_id) ?? '알 수 없음',
+    }))
+
+    setWinners(result)
+    setLoadingWinners(false)
+  }
+
+  // 알림 이미지 선택
+  const handleNotifyImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setNotifyImageFile(file)
+    setNotifyImagePreview(URL.createObjectURL(file))
+  }
+
+  const removeNotifyImage = () => {
+    if (notifyImagePreview) URL.revokeObjectURL(notifyImagePreview)
+    setNotifyImageFile(null)
+    setNotifyImagePreview(null)
+  }
+
+  // 커스텀 알림 전송 (기프티콘 전송용)
+  const sendCustomNotification = async () => {
+    if (!notifyModal || !notifyMessage.trim()) return
+
+    setSending(true)
+
+    let imageUrl: string | null = null
+    if (notifyImageFile) {
+      imageUrl = await uploadImage(notifyImageFile)
+    }
+
+    await supabase.from('notifications').insert({
+      user_id: notifyModal.winner.user_id,
+      type: imageUrl ? 'prize' : 'admin',
+      message: notifyMessage.trim(),
+      link: `/events/${notifyModal.winner.challenge_id}`,
+      image_url: imageUrl,
+    })
+
+    // 이미지가 있으면 상품 전송으로 간주
+    if (imageUrl) {
+      await supabase
+        .from('challenge_winners')
+        .update({ prize_sent: true })
+        .eq('id', notifyModal.winner.id)
+
+      setWinners(prev => prev.map(w =>
+        w.id === notifyModal.winner.id ? { ...w, prize_sent: true } : w
+      ))
+    }
+
+    setSending(false)
+    setNotifyModal(null)
+    setNotifyMessage('')
+    removeNotifyImage()
+    toast.success('알림이 전송되었습니다!')
+  }
+
+  // 전송 완료 처리
+  const markAsSent = async (winnerId: string) => {
+    await supabase
+      .from('challenge_winners')
+      .update({ prize_sent: true })
+      .eq('id', winnerId)
+
+    setWinners(prev => prev.map(w =>
+      w.id === winnerId ? { ...w, prize_sent: true } : w
+    ))
+
+    toast.success('전송 완료 처리되었습니다.')
+  }
+
+  const getWinnerStatus = (winner: WinnerItem) => {
+    if (!winner.has_prize) {
+      return { label: '상품 없음', color: 'bg-gray-100 text-gray-600' }
+    }
+    if (winner.prize_sent) {
+      return { label: '전송 완료', color: 'bg-green-100 text-green-700' }
+    }
+    return { label: '전송 대기', color: 'bg-yellow-100 text-yellow-700' }
+  }
+
   if (loadingEvents) {
     return (
       <div className="flex items-center justify-center h-40 text-sm text-gray-400">
@@ -1446,6 +1576,181 @@ function EventManageTab() {
 
   const ongoingEvents = events.filter((e) => !getEventStatusInfo(e).isEnded)
   const endedEvents = events.filter((e) => getEventStatusInfo(e).isEnded)
+
+  // 우승자 관리 화면
+  if (selectedEventForWinners) {
+    return (
+      <>
+        <div className="p-4">
+          {/* 헤더 */}
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              type="button"
+              onClick={() => setSelectedEventForWinners(null)}
+              className="p-1"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-gray-900 truncate">{selectedEventForWinners.title}</h3>
+              <p className="text-xs text-gray-500">우승자 관리</p>
+            </div>
+          </div>
+
+          {/* 우승자 목록 */}
+          {loadingWinners ? (
+            <div className="flex items-center justify-center h-40 text-sm text-gray-400">불러오는 중...</div>
+          ) : winners.length === 0 ? (
+            <div className="text-center py-10">
+              <Crown className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <p className="text-sm text-gray-400">아직 우승자가 없습니다.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {winners.map((winner) => {
+                const status = getWinnerStatus(winner)
+                return (
+                  <div key={winner.id} className="bg-white rounded-xl p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                        <Crown className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-900 line-clamp-1">
+                          {winner.winner_nickname}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5 line-clamp-1">
+                          우승작: {winner.post_title}
+                        </p>
+                        {winner.has_prize && winner.prize && (
+                          <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-1">
+                            <Gift className="w-3 h-3" />
+                            {winner.prize}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${status.color}`}>
+                            {status.label}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {new Date(winner.created_at).toLocaleDateString('ko-KR')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 상품이 있는 경우에만 버튼 표시 */}
+                    {winner.has_prize && (
+                      <div className="flex gap-2 mt-3">
+                        {!winner.prize_sent ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setNotifyModal({ winner })}
+                              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium"
+                            >
+                              <ImagePlus className="w-4 h-4" />
+                              이미지 전송
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => markAsSent(winner.id)}
+                              className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-green-50 text-green-600 text-sm font-medium"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-gray-100 text-gray-500 text-sm">
+                            <Check className="w-4 h-4" />
+                            전송 완료
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 기프티콘 이미지 전송 모달 */}
+        {notifyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setNotifyModal(null)} />
+            <div className="relative w-[90%] max-w-sm bg-white rounded-2xl p-5">
+              <h3 className="text-base font-bold text-gray-900 mb-1">기프티콘 전송</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                {notifyModal.winner.winner_nickname}님에게 기프티콘 이미지를 전송합니다
+              </p>
+
+              <textarea
+                value={notifyMessage}
+                onChange={(e) => setNotifyMessage(e.target.value)}
+                placeholder={`"${selectedEventForWinners.title}" 챌린지 상품입니다!`}
+                className="w-full h-20 px-3 py-2.5 bg-gray-100 rounded-lg text-sm outline-none resize-none mb-3"
+              />
+
+              {/* 이미지 첨부 */}
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 mb-2">기프티콘 이미지 <span className="text-red-500">*</span></p>
+                {notifyImagePreview ? (
+                  <div className="relative inline-block">
+                    <img src={notifyImagePreview} alt="" className="w-24 h-24 object-cover rounded-lg" />
+                    <button
+                      type="button"
+                      onClick={removeNotifyImage}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="inline-flex flex-col items-center justify-center w-24 h-24 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer text-gray-400 hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                    <Gift className="w-6 h-6" />
+                    <span className="text-[10px] mt-1">이미지 선택</span>
+                    <input
+                      type="file"
+                      accept={IMAGE_ACCEPT}
+                      onChange={handleNotifyImage}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotifyModal(null)
+                    setNotifyMessage('')
+                    removeNotifyImage()
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={sendCustomNotification}
+                  disabled={!notifyMessage.trim() || !notifyImageFile || sending}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${
+                    notifyMessage.trim() && notifyImageFile && !sending
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-400'
+                  }`}
+                >
+                  {sending ? '전송 중...' : '전송'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -1563,6 +1868,17 @@ function EventManageTab() {
                       >
                         <Crown className="w-3.5 h-3.5" />
                         우승자 선정
+                      </button>
+                    )}
+                    {/* 우승자 선정 완료 → 우승자 관리 버튼 */}
+                    {ev.is_official && ev.result_announced && !ev.hidden && (
+                      <button
+                        type="button"
+                        onClick={() => loadWinnersForEvent(ev)}
+                        className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-amber-500 text-white text-xs font-medium"
+                      >
+                        <Crown className="w-3.5 h-3.5" />
+                        우승자 관리
                       </button>
                     )}
                     <button
@@ -1981,7 +2297,7 @@ function ReporterManageTab() {
   )
 }
 
-// ── Tab: 우승자 관리 ──
+// ── 우승자 관리용 타입 (챌린지 관리 탭에서 사용) ──
 
 interface WinnerItem {
   id: string
@@ -1997,311 +2313,6 @@ interface WinnerItem {
   prize_image_url: string | null
   winner_nickname: string
   post_title: string
-}
-
-function WinnersTab() {
-  const [winners, setWinners] = useState<WinnerItem[]>([])
-  const [loading, setLoading] = useState(true)
-
-  // 특정 유저에게 알림 보내기 모달
-  const [notifyModal, setNotifyModal] = useState<{ winner: WinnerItem } | null>(null)
-  const [notifyMessage, setNotifyMessage] = useState('')
-  const [notifyImageFile, setNotifyImageFile] = useState<File | null>(null)
-  const [notifyImagePreview, setNotifyImagePreview] = useState<string | null>(null)
-  const [sending, setSending] = useState(false)
-
-  const loadWinners = async () => {
-    setLoading(true)
-
-    const { data: winnersData, error } = await supabase
-      .from('challenge_winners')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error || !winnersData || winnersData.length === 0) {
-      setWinners([])
-      setLoading(false)
-      return
-    }
-
-    // 챌린지 정보, 닉네임, 게시물 제목 조회
-    const challengeIds = [...new Set(winnersData.map(w => w.challenge_id))]
-    const userIds = [...new Set(winnersData.map(w => w.user_id))]
-    const postIds = [...new Set(winnersData.map(w => w.post_id))]
-
-    const [challengesRes, profilesRes, postsRes] = await Promise.all([
-      supabase.from('events').select('id, title, has_prize, prize, prize_image_url').in('id', challengeIds),
-      supabase.from('profiles').select('id, nickname').in('id', userIds),
-      supabase.from('community_posts').select('id, title').in('id', postIds),
-    ])
-
-    const challengeMap = new Map(
-      (challengesRes.data ?? []).map(c => [c.id, c])
-    )
-    const profileMap = new Map(
-      (profilesRes.data ?? []).map(p => [p.id, p.nickname])
-    )
-    const postMap = new Map(
-      (postsRes.data ?? []).map(p => [p.id, p.title])
-    )
-
-    const result: WinnerItem[] = winnersData.map(w => {
-      const challenge = challengeMap.get(w.challenge_id)
-      return {
-        ...w,
-        challenge_title: challenge?.title ?? '알 수 없음',
-        has_prize: challenge?.has_prize ?? false,
-        prize: challenge?.prize ?? null,
-        prize_image_url: challenge?.prize_image_url ?? null,
-        winner_nickname: profileMap.get(w.user_id) ?? '알 수 없음',
-        post_title: postMap.get(w.post_id) ?? '알 수 없음',
-      }
-    })
-
-    setWinners(result)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    loadWinners()
-  }, [])
-
-  // 전송 완료 처리
-  const markAsSent = async (winnerId: string) => {
-    await supabase
-      .from('challenge_winners')
-      .update({ prize_sent: true })
-      .eq('id', winnerId)
-
-    setWinners(prev => prev.map(w =>
-      w.id === winnerId ? { ...w, prize_sent: true } : w
-    ))
-
-    toast.success('전송 완료 처리되었습니다.')
-  }
-
-  // 알림 이미지 선택
-  const handleNotifyImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setNotifyImageFile(file)
-    setNotifyImagePreview(URL.createObjectURL(file))
-  }
-
-  const removeNotifyImage = () => {
-    if (notifyImagePreview) URL.revokeObjectURL(notifyImagePreview)
-    setNotifyImageFile(null)
-    setNotifyImagePreview(null)
-  }
-
-  // 커스텀 알림 전송 (기프티콘 전송용)
-  const sendCustomNotification = async () => {
-    if (!notifyModal || !notifyMessage.trim()) return
-
-    setSending(true)
-
-    let imageUrl: string | null = null
-    if (notifyImageFile) {
-      imageUrl = await uploadImage(notifyImageFile)
-    }
-
-    await supabase.from('notifications').insert({
-      user_id: notifyModal.winner.user_id,
-      type: imageUrl ? 'prize' : 'admin',
-      message: notifyMessage.trim(),
-      link: `/events/${notifyModal.winner.challenge_id}`,
-      image_url: imageUrl,
-    })
-
-    // 이미지가 있으면 상품 전송으로 간주
-    if (imageUrl) {
-      await supabase
-        .from('challenge_winners')
-        .update({ prize_sent: true })
-        .eq('id', notifyModal.winner.id)
-
-      setWinners(prev => prev.map(w =>
-        w.id === notifyModal.winner.id ? { ...w, prize_sent: true } : w
-      ))
-    }
-
-    setSending(false)
-    setNotifyModal(null)
-    setNotifyMessage('')
-    removeNotifyImage()
-    toast.success('알림이 전송되었습니다!')
-  }
-
-  const getStatus = (winner: WinnerItem) => {
-    if (!winner.has_prize) {
-      return { label: '상품 없음', color: 'bg-gray-100 text-gray-600' }
-    }
-    if (winner.prize_sent) {
-      return { label: '전송 완료', color: 'bg-green-100 text-green-700' }
-    }
-    return { label: '전송 대기', color: 'bg-yellow-100 text-yellow-700' }
-  }
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-40 text-sm text-gray-400">불러오는 중...</div>
-  }
-
-  return (
-    <>
-      <div className="p-4 space-y-3">
-        {winners.length === 0 ? (
-          <div className="text-center py-10">
-            <Crown className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">아직 우승자가 없습니다.</p>
-            <p className="text-xs text-gray-300 mt-1">챌린지 승인 탭에서 결과발표를 진행해주세요.</p>
-          </div>
-        ) : (
-          winners.map((winner) => {
-            const status = getStatus(winner)
-            return (
-              <div key={winner.id} className="bg-white rounded-xl p-4 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
-                    <Crown className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900 line-clamp-1">
-                      {winner.challenge_title}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-0.5 line-clamp-1">
-                      우승작: {winner.post_title}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      우승자: {winner.winner_nickname}
-                    </p>
-                    {winner.has_prize && winner.prize && (
-                      <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-1">
-                        <Gift className="w-3 h-3" />
-                        {winner.prize}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${status.color}`}>
-                        {status.label}
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        {new Date(winner.created_at).toLocaleDateString('ko-KR')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 상품이 있는 경우에만 버튼 표시 */}
-                {winner.has_prize && (
-                  <div className="flex gap-2 mt-3">
-                    {!winner.prize_sent && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setNotifyModal({ winner })}
-                          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium"
-                        >
-                          <ImagePlus className="w-4 h-4" />
-                          이미지 전송
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => markAsSent(winner.id)}
-                          className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-green-50 text-green-600 text-sm font-medium"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                    {winner.prize_sent && (
-                      <div className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-gray-100 text-gray-500 text-sm">
-                        <Check className="w-4 h-4" />
-                        전송 완료
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })
-        )}
-      </div>
-
-      {/* 기프티콘 이미지 전송 모달 */}
-      {notifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setNotifyModal(null)} />
-          <div className="relative w-[90%] max-w-sm bg-white rounded-2xl p-5">
-            <h3 className="text-base font-bold text-gray-900 mb-1">기프티콘 전송</h3>
-            <p className="text-xs text-gray-500 mb-4">
-              {notifyModal.winner.winner_nickname}님에게 기프티콘 이미지를 전송합니다
-            </p>
-
-            <textarea
-              value={notifyMessage}
-              onChange={(e) => setNotifyMessage(e.target.value)}
-              placeholder={`"${notifyModal.winner.challenge_title}" 챌린지 상품입니다!`}
-              className="w-full h-20 px-3 py-2.5 bg-gray-100 rounded-lg text-sm outline-none resize-none mb-3"
-            />
-
-            {/* 이미지 첨부 */}
-            <div className="mb-4">
-              <p className="text-xs text-gray-500 mb-2">기프티콘 이미지 <span className="text-red-500">*</span></p>
-              {notifyImagePreview ? (
-                <div className="relative inline-block">
-                  <img src={notifyImagePreview} alt="" className="w-24 h-24 object-cover rounded-lg" />
-                  <button
-                    type="button"
-                    onClick={removeNotifyImage}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <label className="inline-flex flex-col items-center justify-center w-24 h-24 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer text-gray-400 hover:border-blue-400 hover:bg-blue-50 transition-colors">
-                  <Gift className="w-6 h-6" />
-                  <span className="text-[10px] mt-1">이미지 선택</span>
-                  <input
-                    type="file"
-                    accept={IMAGE_ACCEPT}
-                    onChange={handleNotifyImage}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setNotifyModal(null)
-                  setNotifyMessage('')
-                  removeNotifyImage()
-                }}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={sendCustomNotification}
-                disabled={!notifyMessage.trim() || !notifyImageFile || sending}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${
-                  notifyMessage.trim() && notifyImageFile && !sending
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-400'
-                }`}
-              >
-                {sending ? '전송 중...' : '전송'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
 }
 
 // ── 알림 보내기 탭 (superadmin 전용) ──
@@ -2557,7 +2568,7 @@ function NotifyTab() {
 
 // ── Main ──
 
-type TabKey = 'stats' | 'reports' | 'hidden' | 'reporters' | 'events' | 'winners' | 'feedback' | 'ban' | 'notify'
+type TabKey = 'stats' | 'reports' | 'hidden' | 'reporters' | 'events' | 'feedback' | 'ban' | 'notify'
 
 const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
   { key: 'stats', label: '통계', superOnly: true },
@@ -2565,7 +2576,6 @@ const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
   { key: 'hidden', label: '숨김 관리', superOnly: false },
   { key: 'reporters', label: '신고자 관리', superOnly: true },
   { key: 'events', label: '챌린지 관리', superOnly: true },
-  { key: 'winners', label: '우승자 관리', superOnly: true },
   { key: 'feedback', label: '건의 관리', superOnly: true },
   { key: 'ban', label: '유저 제재', superOnly: true },
   { key: 'notify', label: '알림 보내기', superOnly: true },
@@ -2640,7 +2650,6 @@ export default function AdminPage() {
         {activeTab === 'hidden' && <HiddenPostsTab />}
         {activeTab === 'reporters' && isSuperAdmin && <ReporterManageTab />}
         {activeTab === 'events' && isSuperAdmin && <EventManageTab />}
-        {activeTab === 'winners' && isSuperAdmin && <WinnersTab />}
         {activeTab === 'feedback' && isSuperAdmin && <FeedbackTab onUnreadCount={setUnreadFeedback} />}
         {activeTab === 'ban' && isSuperAdmin && <BanTab />}
         {activeTab === 'notify' && isSuperAdmin && <NotifyTab />}
