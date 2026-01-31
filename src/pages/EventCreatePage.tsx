@@ -38,7 +38,6 @@ export default function EventCreatePage() {
   const remainingTime = getRemainingTime()
 
   const [title, setTitle] = useState('')
-  const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
 
@@ -47,7 +46,7 @@ export default function EventCreatePage() {
     ? new Date(new Date(startDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     : ''
   const endDateFormatted = endDate
-    ? new Date(endDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+    ? `${new Date(endDate).getMonth() + 1}.${new Date(endDate).getDate()}`
     : ''
 
   // 이미지 (최대 5장)
@@ -115,7 +114,6 @@ export default function EventCreatePage() {
 
   const canSubmit =
     title.trim() &&
-    topic.trim() &&
     description.trim() &&
     startDate &&
     (!hasPrize || (prizeName.trim() && prizeImageFile)) &&
@@ -145,7 +143,7 @@ export default function EventCreatePage() {
         user_id: user.id,
         author_nickname: profile.nickname,
         title: title.trim(),
-        topic: topic.trim(),
+        topic: '',
         description: description.trim(),
         start_date: startDate,
         end_date: endDate,
@@ -256,20 +254,6 @@ export default function EventCreatePage() {
           />
         </div>
 
-        {/* 주제 */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            주제 <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="예: 겨울 풍경, 일출 사진"
-            className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400"
-          />
-        </div>
-
         {/* 설명 */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -339,18 +323,10 @@ export default function EventCreatePage() {
             className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400"
           />
           {startDate && (
-            <p className="mt-1.5 text-xs text-gray-500">
-              챌린지 기간: 7일 (종료일: {endDateFormatted})
+            <p className="mt-1.5 text-xs text-gray-400">
+              챌린지 기간: 7일 (종료일: {endDateFormatted}) · 우승: 추천 수 1위
             </p>
           )}
-        </div>
-
-        {/* 우승 기준 (고정) */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            우승 기준
-          </label>
-          <p className="text-xs text-gray-400">추천 수 1위</p>
         </div>
 
         {/* 상품 유무 */}
