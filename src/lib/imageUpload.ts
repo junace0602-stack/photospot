@@ -13,10 +13,10 @@ const ALLOWED_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif',
 ])
 
-const MAX_DIMENSION = 2560
 const THUMBNAIL_SIZE = 400
-const WEBP_QUALITY = 0.90
 const THUMBNAIL_QUALITY = 0.82
+// 원본: 리사이즈 없음, WebP 무손실 (quality 1.0)
+const WEBP_LOSSLESS_QUALITY = 1.0
 
 const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,.webp'
 export { IMAGE_ACCEPT }
@@ -47,28 +47,28 @@ function isHeic(file: File): boolean {
   )
 }
 
-/** HEIC/HEIF → JPEG Blob 변환 */
+/** HEIC/HEIF → JPEG Blob 변환 (고품질) */
 async function convertHeic(file: File): Promise<Blob> {
   const heic2any = (await import('heic2any')).default
   const result = await heic2any({
     blob: file,
     toType: 'image/jpeg',
-    quality: 0.92,
+    quality: 0.98, // 최대한 무손실에 가깝게
   })
   return Array.isArray(result) ? result[0] : result
 }
 
 /**
- * Canvas를 이용해 이미지를 WebP로 변환 + 리사이즈 + 압축
- * - maxDim: 최대 크기 (기본 2560px, 비율 유지)
- * - quality: WebP 품질 (기본 0.85)
+ * Canvas를 이용해 이미지를 WebP로 변환
+ * - maxDim: 최대 크기 (0이면 리사이즈 없음, 원본 해상도 유지)
+ * - quality: WebP 품질 (1.0 = 무손실)
  * - crop: true면 중앙 크롭하여 정사각형으로 만듦 (썸네일용)
  */
 function toWebP(
   source: Blob,
-  maxDim = MAX_DIMENSION,
-  quality = WEBP_QUALITY,
-  crop = false,
+  maxDim: number = 0,
+  quality: number = WEBP_LOSSLESS_QUALITY,
+  crop: boolean = false,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(source)
@@ -88,14 +88,15 @@ function toWebP(
         sh = side
         width = maxDim
         height = maxDim
+      } else if (maxDim > 0 && (img.width > maxDim || img.height > maxDim)) {
+        // 리사이즈 필요 시에만 리사이즈
+        const ratio = Math.min(maxDim / img.width, maxDim / img.height)
+        width = Math.round(img.width * ratio)
+        height = Math.round(img.height * ratio)
       } else {
+        // 원본 해상도 유지
         width = img.width
         height = img.height
-        if (width > maxDim || height > maxDim) {
-          const ratio = Math.min(maxDim / width, maxDim / height)
-          width = Math.round(width * ratio)
-          height = Math.round(height * ratio)
-        }
       }
 
       const canvas = document.createElement('canvas')
@@ -125,7 +126,7 @@ function toWebP(
 /**
  * Supabase Storage images 버킷에 업로드 후 공개 URL 반환
  * - 지원 형식: JPEG, PNG, HEIC/HEIF, WEBP
- * - 모든 이미지를 WebP로 변환 (90% 품질, 최대 2560px)
+ * - 모든 이미지를 WebP 무손실로 변환 (원본 해상도 유지)
  * @deprecated uploadImageWithThumbnail 사용 권장
  */
 export async function uploadImage(file: File): Promise<string> {
@@ -135,7 +136,7 @@ export async function uploadImage(file: File): Promise<string> {
 
 /**
  * 이미지 + 썸네일(400x400)을 함께 업로드
- * - 원본: 최대 2560px, WebP 90% 품질
+ * - 원본: WebP 무손실 (리사이즈 없음, quality 100%)
  * - 썸네일: 400x400px 중앙 크롭, WebP 82% 품질
  */
 export async function uploadImageWithThumbnail(file: File): Promise<UploadResult> {
@@ -160,8 +161,8 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
     source = await convertHeic(file)
   }
 
-  // 4. 원본 WebP 변환 + 리사이즈
-  const blob = await toWebP(source)
+  // 4. 원본 WebP 무손실 변환 (리사이즈 없음)
+  const blob = await toWebP(source, 0, WEBP_LOSSLESS_QUALITY, false)
 
   // 5. 썸네일 생성 (400x400 중앙 크롭)
   const thumbBlob = await toWebP(source, THUMBNAIL_SIZE, THUMBNAIL_QUALITY, true)
