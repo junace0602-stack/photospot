@@ -748,10 +748,10 @@ export default function ListPage() {
   const isEquipment = section === '장비'
   const [showEndedEvents, setShowEndedEvents] = useState(false)
 
-  /* ── 사진 탭 뷰 모드 (localStorage 저장) ── */
+  /* ── 사진 탭 뷰 모드 (localStorage 저장, 기본값: 리스트) ── */
   const [photoViewMode, setPhotoViewMode] = useState<'grid' | 'list'>(() => {
     const saved = localStorage.getItem('photoViewMode')
-    return (saved === 'list' ? 'list' : 'grid') as 'grid' | 'list'
+    return (saved === 'grid' ? 'grid' : 'list') as 'grid' | 'list'
   })
 
   const togglePhotoViewMode = useCallback(() => {
