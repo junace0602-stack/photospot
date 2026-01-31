@@ -137,74 +137,142 @@ const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }
   '케냐': { lat: -0.02, lng: 37.9, zoom: 6 },
 }
 
-/* ── 국기 이모지 매핑 (동적 나라 목록용) ── */
-const COUNTRY_FLAGS: Record<string, string> = {
-  '일본': '🇯🇵',
-  '대만': '🇹🇼',
-  '태국': '🇹🇭',
-  '베트남': '🇻🇳',
-  '미국': '🇺🇸',
-  '중국': '🇨🇳',
-  '프랑스': '🇫🇷',
-  '영국': '🇬🇧',
-  '이탈리아': '🇮🇹',
-  '스페인': '🇪🇸',
-  '독일': '🇩🇪',
-  '호주': '🇦🇺',
-  '캐나다': '🇨🇦',
-  '싱가포르': '🇸🇬',
-  '홍콩': '🇭🇰',
-  '인도네시아': '🇮🇩',
-  '필리핀': '🇵🇭',
-  '말레이시아': '🇲🇾',
-  '인도': '🇮🇳',
-  '터키': '🇹🇷',
-  '이집트': '🇪🇬',
-  '스위스': '🇨🇭',
-  '체코': '🇨🇿',
-  '네덜란드': '🇳🇱',
-  '뉴질랜드': '🇳🇿',
-  '멕시코': '🇲🇽',
-  '브라질': '🇧🇷',
-  '그리스': '🇬🇷',
-  '노르웨이': '🇳🇴',
-  '스웨덴': '🇸🇪',
-  '아이슬란드': '🇮🇸',
-  '크로아티아': '🇭🇷',
-  '포르투갈': '🇵🇹',
-  '몽골': '🇲🇳',
-  '캄보디아': '🇰🇭',
-  '라오스': '🇱🇦',
-  '네팔': '🇳🇵',
-  '몰디브': '🇲🇻',
-  '괌': '🇬🇺',
-  '사이판': '🇲🇵',
-  '카자흐스탄': '🇰🇿',
-  '우즈베키스탄': '🇺🇿',
-  '오스트리아': '🇦🇹',
-  '아르헨티나': '🇦🇷',
-  '페루': '🇵🇪',
-  '칠레': '🇨🇱',
-  '아랍에미리트': '🇦🇪',
-  '모로코': '🇲🇦',
-  '남아공': '🇿🇦',
-  '마카오': '🇲🇴',
-  '미얀마': '🇲🇲',
-  '스리랑카': '🇱🇰',
-  '핀란드': '🇫🇮',
-  '덴마크': '🇩🇰',
-  '폴란드': '🇵🇱',
-  '헝가리': '🇭🇺',
-  '벨기에': '🇧🇪',
-  '아일랜드': '🇮🇪',
-  '루마니아': '🇷🇴',
-  '콜롬비아': '🇨🇴',
-  '쿠바': '🇨🇺',
-  '요르단': '🇯🇴',
-  '이스라엘': '🇮🇱',
-  '오만': '🇴🇲',
-  '탄자니아': '🇹🇿',
-  '케냐': '🇰🇪',
+/* ── 전 세계 나라 목록 (검색 자동완성용) ── */
+const ALL_COUNTRIES: { name: string; flag: string; aliases: string[] }[] = [
+  { name: '일본', flag: '🇯🇵', aliases: ['japan', 'jp'] },
+  { name: '대만', flag: '🇹🇼', aliases: ['taiwan', 'tw'] },
+  { name: '태국', flag: '🇹🇭', aliases: ['thailand', 'th'] },
+  { name: '베트남', flag: '🇻🇳', aliases: ['vietnam', 'vn'] },
+  { name: '미국', flag: '🇺🇸', aliases: ['usa', 'us', 'america', 'united states'] },
+  { name: '중국', flag: '🇨🇳', aliases: ['china', 'cn'] },
+  { name: '프랑스', flag: '🇫🇷', aliases: ['france', 'fr'] },
+  { name: '영국', flag: '🇬🇧', aliases: ['uk', 'england', 'united kingdom', 'britain'] },
+  { name: '이탈리아', flag: '🇮🇹', aliases: ['italy', 'it'] },
+  { name: '스페인', flag: '🇪🇸', aliases: ['spain', 'es'] },
+  { name: '독일', flag: '🇩🇪', aliases: ['germany', 'de'] },
+  { name: '호주', flag: '🇦🇺', aliases: ['australia', 'au'] },
+  { name: '캐나다', flag: '🇨🇦', aliases: ['canada', 'ca'] },
+  { name: '싱가포르', flag: '🇸🇬', aliases: ['singapore', 'sg'] },
+  { name: '홍콩', flag: '🇭🇰', aliases: ['hong kong', 'hk'] },
+  { name: '인도네시아', flag: '🇮🇩', aliases: ['indonesia', 'id'] },
+  { name: '필리핀', flag: '🇵🇭', aliases: ['philippines', 'ph'] },
+  { name: '말레이시아', flag: '🇲🇾', aliases: ['malaysia', 'my'] },
+  { name: '인도', flag: '🇮🇳', aliases: ['india', 'in'] },
+  { name: '터키', flag: '🇹🇷', aliases: ['turkey', 'turkiye', 'tr'] },
+  { name: '이집트', flag: '🇪🇬', aliases: ['egypt', 'eg'] },
+  { name: '스위스', flag: '🇨🇭', aliases: ['switzerland', 'ch', 'swiss'] },
+  { name: '체코', flag: '🇨🇿', aliases: ['czech', 'czechia', 'cz'] },
+  { name: '네덜란드', flag: '🇳🇱', aliases: ['netherlands', 'nl', 'holland'] },
+  { name: '뉴질랜드', flag: '🇳🇿', aliases: ['new zealand', 'nz'] },
+  { name: '멕시코', flag: '🇲🇽', aliases: ['mexico', 'mx'] },
+  { name: '브라질', flag: '🇧🇷', aliases: ['brazil', 'br'] },
+  { name: '그리스', flag: '🇬🇷', aliases: ['greece', 'gr'] },
+  { name: '노르웨이', flag: '🇳🇴', aliases: ['norway', 'no'] },
+  { name: '스웨덴', flag: '🇸🇪', aliases: ['sweden', 'se'] },
+  { name: '아이슬란드', flag: '🇮🇸', aliases: ['iceland', 'is'] },
+  { name: '크로아티아', flag: '🇭🇷', aliases: ['croatia', 'hr'] },
+  { name: '포르투갈', flag: '🇵🇹', aliases: ['portugal', 'pt'] },
+  { name: '몽골', flag: '🇲🇳', aliases: ['mongolia', 'mn'] },
+  { name: '캄보디아', flag: '🇰🇭', aliases: ['cambodia', 'kh'] },
+  { name: '라오스', flag: '🇱🇦', aliases: ['laos', 'la'] },
+  { name: '네팔', flag: '🇳🇵', aliases: ['nepal', 'np'] },
+  { name: '몰디브', flag: '🇲🇻', aliases: ['maldives', 'mv'] },
+  { name: '괌', flag: '🇬🇺', aliases: ['guam', 'gu'] },
+  { name: '사이판', flag: '🇲🇵', aliases: ['saipan'] },
+  { name: '카자흐스탄', flag: '🇰🇿', aliases: ['kazakhstan', 'kz'] },
+  { name: '우즈베키스탄', flag: '🇺🇿', aliases: ['uzbekistan', 'uz'] },
+  { name: '오스트리아', flag: '🇦🇹', aliases: ['austria', 'at'] },
+  { name: '아르헨티나', flag: '🇦🇷', aliases: ['argentina', 'ar'] },
+  { name: '페루', flag: '🇵🇪', aliases: ['peru', 'pe'] },
+  { name: '칠레', flag: '🇨🇱', aliases: ['chile', 'cl'] },
+  { name: '아랍에미리트', flag: '🇦🇪', aliases: ['uae', 'dubai', 'united arab emirates'] },
+  { name: '모로코', flag: '🇲🇦', aliases: ['morocco', 'ma'] },
+  { name: '남아공', flag: '🇿🇦', aliases: ['south africa', 'za'] },
+  { name: '마카오', flag: '🇲🇴', aliases: ['macau', 'macao', 'mo'] },
+  { name: '미얀마', flag: '🇲🇲', aliases: ['myanmar', 'burma', 'mm'] },
+  { name: '스리랑카', flag: '🇱🇰', aliases: ['sri lanka', 'lk'] },
+  { name: '핀란드', flag: '🇫🇮', aliases: ['finland', 'fi'] },
+  { name: '덴마크', flag: '🇩🇰', aliases: ['denmark', 'dk'] },
+  { name: '폴란드', flag: '🇵🇱', aliases: ['poland', 'pl'] },
+  { name: '헝가리', flag: '🇭🇺', aliases: ['hungary', 'hu'] },
+  { name: '벨기에', flag: '🇧🇪', aliases: ['belgium', 'be'] },
+  { name: '아일랜드', flag: '🇮🇪', aliases: ['ireland', 'ie'] },
+  { name: '루마니아', flag: '🇷🇴', aliases: ['romania', 'ro'] },
+  { name: '콜롬비아', flag: '🇨🇴', aliases: ['colombia', 'co'] },
+  { name: '쿠바', flag: '🇨🇺', aliases: ['cuba', 'cu'] },
+  { name: '요르단', flag: '🇯🇴', aliases: ['jordan', 'jo'] },
+  { name: '이스라엘', flag: '🇮🇱', aliases: ['israel', 'il'] },
+  { name: '오만', flag: '🇴🇲', aliases: ['oman', 'om'] },
+  { name: '탄자니아', flag: '🇹🇿', aliases: ['tanzania', 'tz'] },
+  { name: '케냐', flag: '🇰🇪', aliases: ['kenya', 'ke'] },
+  { name: '러시아', flag: '🇷🇺', aliases: ['russia', 'ru'] },
+  { name: '우크라이나', flag: '🇺🇦', aliases: ['ukraine', 'ua'] },
+  { name: '사우디아라비아', flag: '🇸🇦', aliases: ['saudi arabia', 'sa'] },
+  { name: '카타르', flag: '🇶🇦', aliases: ['qatar', 'qa'] },
+  { name: '쿠웨이트', flag: '🇰🇼', aliases: ['kuwait', 'kw'] },
+  { name: '바레인', flag: '🇧🇭', aliases: ['bahrain', 'bh'] },
+  { name: '파키스탄', flag: '🇵🇰', aliases: ['pakistan', 'pk'] },
+  { name: '방글라데시', flag: '🇧🇩', aliases: ['bangladesh', 'bd'] },
+  { name: '이란', flag: '🇮🇷', aliases: ['iran', 'ir'] },
+  { name: '이라크', flag: '🇮🇶', aliases: ['iraq', 'iq'] },
+  { name: '세르비아', flag: '🇷🇸', aliases: ['serbia', 'rs'] },
+  { name: '불가리아', flag: '🇧🇬', aliases: ['bulgaria', 'bg'] },
+  { name: '슬로바키아', flag: '🇸🇰', aliases: ['slovakia', 'sk'] },
+  { name: '슬로베니아', flag: '🇸🇮', aliases: ['slovenia', 'si'] },
+  { name: '라트비아', flag: '🇱🇻', aliases: ['latvia', 'lv'] },
+  { name: '리투아니아', flag: '🇱🇹', aliases: ['lithuania', 'lt'] },
+  { name: '에스토니아', flag: '🇪🇪', aliases: ['estonia', 'ee'] },
+  { name: '조지아', flag: '🇬🇪', aliases: ['georgia', 'ge'] },
+  { name: '아르메니아', flag: '🇦🇲', aliases: ['armenia', 'am'] },
+  { name: '아제르바이잔', flag: '🇦🇿', aliases: ['azerbaijan', 'az'] },
+  { name: '북한', flag: '🇰🇵', aliases: ['north korea', 'kp'] },
+  { name: '보츠와나', flag: '🇧🇼', aliases: ['botswana', 'bw'] },
+  { name: '짐바브웨', flag: '🇿🇼', aliases: ['zimbabwe', 'zw'] },
+  { name: '나미비아', flag: '🇳🇦', aliases: ['namibia', 'na'] },
+  { name: '에티오피아', flag: '🇪🇹', aliases: ['ethiopia', 'et'] },
+  { name: '가나', flag: '🇬🇭', aliases: ['ghana', 'gh'] },
+  { name: '나이지리아', flag: '🇳🇬', aliases: ['nigeria', 'ng'] },
+  { name: '튀니지', flag: '🇹🇳', aliases: ['tunisia', 'tn'] },
+  { name: '알제리', flag: '🇩🇿', aliases: ['algeria', 'dz'] },
+  { name: '세네갈', flag: '🇸🇳', aliases: ['senegal', 'sn'] },
+  { name: '코스타리카', flag: '🇨🇷', aliases: ['costa rica', 'cr'] },
+  { name: '파나마', flag: '🇵🇦', aliases: ['panama', 'pa'] },
+  { name: '과테말라', flag: '🇬🇹', aliases: ['guatemala', 'gt'] },
+  { name: '에콰도르', flag: '🇪🇨', aliases: ['ecuador', 'ec'] },
+  { name: '볼리비아', flag: '🇧🇴', aliases: ['bolivia', 'bo'] },
+  { name: '우루과이', flag: '🇺🇾', aliases: ['uruguay', 'uy'] },
+  { name: '파라과이', flag: '🇵🇾', aliases: ['paraguay', 'py'] },
+  { name: '베네수엘라', flag: '🇻🇪', aliases: ['venezuela', 've'] },
+  { name: '자메이카', flag: '🇯🇲', aliases: ['jamaica', 'jm'] },
+  { name: '도미니카공화국', flag: '🇩🇴', aliases: ['dominican republic', 'do'] },
+  { name: '푸에르토리코', flag: '🇵🇷', aliases: ['puerto rico', 'pr'] },
+  { name: '하와이', flag: '🇺🇸', aliases: ['hawaii'] },
+  { name: '피지', flag: '🇫🇯', aliases: ['fiji', 'fj'] },
+  { name: '타히티', flag: '🇵🇫', aliases: ['tahiti', 'french polynesia'] },
+  { name: '몰타', flag: '🇲🇹', aliases: ['malta', 'mt'] },
+  { name: '키프로스', flag: '🇨🇾', aliases: ['cyprus', 'cy'] },
+  { name: '룩셈부르크', flag: '🇱🇺', aliases: ['luxembourg', 'lu'] },
+  { name: '모나코', flag: '🇲🇨', aliases: ['monaco', 'mc'] },
+  { name: '산마리노', flag: '🇸🇲', aliases: ['san marino', 'sm'] },
+  { name: '바티칸', flag: '🇻🇦', aliases: ['vatican', 'va'] },
+  { name: '안도라', flag: '🇦🇩', aliases: ['andorra', 'ad'] },
+  { name: '리히텐슈타인', flag: '🇱🇮', aliases: ['liechtenstein', 'li'] },
+  { name: '부탄', flag: '🇧🇹', aliases: ['bhutan', 'bt'] },
+  { name: '브루나이', flag: '🇧🇳', aliases: ['brunei', 'bn'] },
+  { name: '동티모르', flag: '🇹🇱', aliases: ['east timor', 'timor-leste', 'tl'] },
+]
+
+// 국기 이모지 빠른 조회용 맵
+const COUNTRY_FLAGS: Record<string, string> = Object.fromEntries(
+  ALL_COUNTRIES.map(c => [c.name, c.flag])
+)
+
+// 나라 검색 매칭 함수
+function matchCountry(country: typeof ALL_COUNTRIES[0], query: string): boolean {
+  const q = query.toLowerCase()
+  if (country.name.includes(query)) return true
+  if (country.name.toLowerCase().includes(q)) return true
+  return country.aliases.some(a => a.includes(q))
 }
 
 /* ── 국내 시/도 및 구/군 데이터 ── */
@@ -348,76 +416,6 @@ function getDistrictFromAddress(address: string | undefined): string | null {
   return null
 }
 
-/** 나라 이름 한글↔영어 매핑 (검색용) */
-const COUNTRY_ALIASES: Record<string, string[]> = {
-  '일본': ['japan', 'jp'],
-  '대만': ['taiwan', 'tw'],
-  '태국': ['thailand', 'th'],
-  '베트남': ['vietnam', 'vn'],
-  '미국': ['usa', 'us', 'america', 'united states'],
-  '중국': ['china', 'cn'],
-  '영국': ['uk', 'england', 'united kingdom'],
-  '프랑스': ['france', 'fr'],
-  '독일': ['germany', 'de'],
-  '이탈리아': ['italy', 'it'],
-  '스페인': ['spain', 'es'],
-  '호주': ['australia', 'au'],
-  '캐나다': ['canada', 'ca'],
-  '인도네시아': ['indonesia', 'id'],
-  '말레이시아': ['malaysia', 'my'],
-  '싱가포르': ['singapore', 'sg'],
-  '필리핀': ['philippines', 'ph'],
-  '홍콩': ['hong kong', 'hk'],
-  '스위스': ['switzerland', 'ch'],
-  '뉴질랜드': ['new zealand', 'nz'],
-  '터키': ['turkey', 'turkiye', 'tr'],
-  '멕시코': ['mexico', 'mx'],
-  '브라질': ['brazil', 'br'],
-  '네덜란드': ['netherlands', 'nl', 'holland'],
-  '체코': ['czech', 'czechia', 'cz'],
-  '그리스': ['greece', 'gr'],
-  '노르웨이': ['norway', 'no'],
-  '스웨덴': ['sweden', 'se'],
-  '아이슬란드': ['iceland', 'is'],
-  '크로아티아': ['croatia', 'hr'],
-  '포르투갈': ['portugal', 'pt'],
-  '몽골': ['mongolia', 'mn'],
-  '캄보디아': ['cambodia', 'kh'],
-  '라오스': ['laos', 'la'],
-  '네팔': ['nepal', 'np'],
-  '몰디브': ['maldives', 'mv'],
-  '괌': ['guam', 'gu'],
-  '사이판': ['saipan'],
-  '인도': ['india', 'in'],
-  '카자흐스탄': ['kazakhstan', 'kz'],
-  '우즈베키스탄': ['uzbekistan', 'uz'],
-  '오스트리아': ['austria', 'at'],
-  '아르헨티나': ['argentina', 'ar'],
-  '페루': ['peru', 'pe'],
-  '칠레': ['chile', 'cl'],
-  '아랍에미리트': ['uae', 'united arab emirates', 'dubai', 'ae'],
-  '이집트': ['egypt', 'eg'],
-  '모로코': ['morocco', 'ma'],
-  '남아공': ['south africa', 'za'],
-  '마카오': ['macau', 'macao', 'mo'],
-  '미얀마': ['myanmar', 'burma', 'mm'],
-  '스리랑카': ['sri lanka', 'lk'],
-  '핀란드': ['finland', 'fi'],
-  '덴마크': ['denmark', 'dk'],
-  '폴란드': ['poland', 'pl'],
-  '헝가리': ['hungary', 'hu'],
-  '벨기에': ['belgium', 'be'],
-  '아일랜드': ['ireland', 'ie'],
-  '루마니아': ['romania', 'ro'],
-  '콜롬비아': ['colombia', 'co'],
-  '쿠바': ['cuba', 'cu'],
-  '요르단': ['jordan', 'jo'],
-  '이스라엘': ['israel', 'il'],
-  '오만': ['oman', 'om'],
-  '탄자니아': ['tanzania', 'tz'],
-  '케냐': ['kenya', 'ke'],
-}
-
 function createPinContent(count: number): HTMLDivElement {
   let fill: string
   if (count >= 16) fill = '#E5383B'
@@ -447,13 +445,6 @@ const clusterRenderer: Renderer = {
       zIndex: count,
     })
   },
-}
-
-function matchesCountry(country: string, query: string): boolean {
-  const q = query.toLowerCase()
-  if (country.toLowerCase().includes(q)) return true
-  const aliases = COUNTRY_ALIASES[country]
-  return aliases ? aliases.some((a) => a.includes(q)) : false
 }
 
 function getDistanceKm(
@@ -1032,17 +1023,39 @@ export default function MapPage() {
     return stats
   }, [places, placeStats])
 
-  // 나라 검색 결과 (출사지가 있는 나라만 동적으로 표시)
-  const filteredCountries = useMemo(() => {
-    const q = countrySearch.trim()
-    // countryStats에서 출사지가 있는 나라들을 출사지 수 내림차순으로 정렬
-    const countriesWithSpots = Array.from(countryStats.entries())
+  // 출사지가 있는 나라 목록 (출사지 수 내림차순)
+  const countriesWithSpots = useMemo(() => {
+    return Array.from(countryStats.entries())
       .sort((a, b) => b[1].placeCount - a[1].placeCount)
       .map(([country]) => country)
+  }, [countryStats])
 
-    if (!q) return countriesWithSpots
-    return countriesWithSpots.filter((c) => matchesCountry(c, q))
-  }, [countrySearch, countryStats])
+  // 검색 자동완성 (전 세계 나라에서 검색) - 검색어 있을 때만
+  const countrySuggestions = useMemo(() => {
+    const q = countrySearch.trim()
+    if (!q || q.length < 1) return []
+
+    const existingCountries = new Set(countriesWithSpots)
+
+    // 매칭되는 나라 목록 (출사지 있는 나라 우선, 그 다음 없는 나라)
+    const withSpots = ALL_COUNTRIES
+      .filter(c => existingCountries.has(c.name) && matchCountry(c, q))
+      .map(c => ({ ...c, hasSpots: true, spotCount: countryStats.get(c.name)?.placeCount ?? 0 }))
+
+    const withoutSpots = ALL_COUNTRIES
+      .filter(c => !existingCountries.has(c.name) && matchCountry(c, q))
+      .map(c => ({ ...c, hasSpots: false, spotCount: 0 }))
+
+    // 출사지 있는 나라가 먼저, 그 다음 없는 나라 (최대 8개)
+    return [...withSpots, ...withoutSpots].slice(0, 8)
+  }, [countrySearch, countriesWithSpots, countryStats])
+
+  // 표시할 나라 목록 (출사지 있는 나라만, 검색어 없을 때)
+  const filteredCountries = useMemo(() => {
+    // 검색어 있으면 빈 배열 (자동완성 사용)
+    if (countrySearch.trim()) return []
+    return countriesWithSpots
+  }, [countrySearch, countriesWithSpots])
 
   // 해외 모드에서 나라 선택 전: 나라 목록 표시
   const showCountryList = region === 'international' && !countryFilter
@@ -1273,11 +1286,25 @@ export default function MapPage() {
     setCountryFilter(country)
     setCountrySearch('')
     setListSort('nearest')
+    // 브라우저 히스토리에 상태 추가 (뒤로가기 시 나라 목록으로 돌아가기 위함)
+    window.history.pushState({ country }, '', window.location.pathname)
   }, [])
 
   const handleClearCountry = useCallback(() => {
     setCountryFilter(null)
   }, [])
+
+  // 브라우저 뒤로가기 처리 (해외 탭에서 나라 선택 해제)
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      // 해외 탭에서 나라가 선택된 상태에서 뒤로가기 시
+      if (region === 'international' && countryFilter && !e.state?.country) {
+        setCountryFilter(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [region, countryFilter])
 
   // 국내 시/도 클릭
   const handleProvinceClick = useCallback((province: KoreaProvince) => {
@@ -1810,6 +1837,32 @@ export default function MapPage() {
                 placeholder="나라 검색 (한글/영어)"
                 className="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {/* 자동완성 드롭다운 */}
+              {countrySuggestions.length > 0 && sheetState !== 'peek' && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-80 overflow-y-auto">
+                  {countrySuggestions.map((item) => (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() => {
+                        handleCountryClick(item.name)
+                        setCountrySearch('')
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0 text-left hover:bg-gray-50"
+                    >
+                      <span className="text-xl">{item.flag}</span>
+                      <span className="flex-1 text-sm font-medium text-gray-900">
+                        {item.name}
+                        {item.hasSpots ? (
+                          <span className="ml-1.5 text-blue-500">({item.spotCount})</span>
+                        ) : (
+                          <span className="ml-1.5 text-gray-400">(0)</span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1847,22 +1900,23 @@ export default function MapPage() {
         {sheetState !== 'peek' && (
           showCountryList ? (
             <div ref={listRef} className="flex-1 overflow-y-auto">
-              {filteredCountries.length === 0 ? (
-                countrySearch.trim() ? (
+              {/* 검색어 입력 중이면 자동완성 드롭다운 사용, 목록은 숨김 */}
+              {countrySearch.trim() ? (
+                countrySuggestions.length === 0 && (
                   <p className="text-sm text-gray-400 text-center py-8">
                     &quot;{countrySearch}&quot; 검색 결과 없음
                   </p>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                    <span className="text-4xl mb-3">🌍</span>
-                    <p className="text-sm font-medium text-gray-600 mb-1">
-                      아직 등록된 해외 출사지가 없습니다
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      첫 번째로 등록해보세요!
-                    </p>
-                  </div>
                 )
+              ) : filteredCountries.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                  <span className="text-4xl mb-3">🌍</span>
+                  <p className="text-sm font-medium text-gray-600 mb-1">
+                    아직 등록된 해외 출사지가 없습니다
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    첫 번째로 등록해보세요!
+                  </p>
+                </div>
               ) : (
                 filteredCountries.map((country) => {
                   const cs = countryStats.get(country)
@@ -2000,11 +2054,31 @@ export default function MapPage() {
                     )}
                     {/* 검색어 없을 때 기본 메시지 */}
                     {(!searchQuery.trim() || region === 'international') && (
-                      <p className="text-sm text-gray-400 text-center py-8">
-                        {region === 'international'
-                          ? '해외 출사지가 없습니다.'
-                          : '등록된 장소가 없습니다.'}
-                      </p>
+                      region === 'international' && countryFilter ? (
+                        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                          <span className="text-4xl mb-3">{COUNTRY_FLAGS[countryFilter] ?? '🌍'}</span>
+                          <p className="text-sm font-medium text-gray-600 mb-1">
+                            {countryFilter}에 등록된 출사지가 없습니다
+                          </p>
+                          <p className="text-xs text-gray-400 mb-4">
+                            첫 번째로 등록해보세요!
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigate('/posts/new', { state: { country: countryFilter } })
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                          >
+                            <Pencil className="w-4 h-4" />
+                            글 쓰기
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 text-center py-8">
+                          등록된 장소가 없습니다.
+                        </p>
+                      )
                     )}
                   </>
                 ) : (
