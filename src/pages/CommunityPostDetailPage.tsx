@@ -896,7 +896,7 @@ export default function CommunityPostDetailPage() {
                 className="w-full mb-3"
                 onClick={() => setViewerIndex(i)}
               >
-                <img src={getOptimizedImageUrl(url, 1200, 85)} alt={`사진 ${i + 1}`} className="w-full rounded-lg" />
+                <img src={url} alt={`사진 ${i + 1}`} className="w-full rounded-lg" />
               </button>
             ))}
           </div>

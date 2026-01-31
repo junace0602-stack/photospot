@@ -894,7 +894,7 @@ export default function PostDetailPage() {
                     onClick={() => setViewerIndex(pi)}
                   >
                     <img
-                      src={getOptimizedImageUrl(block.url!, 1200, 85)}
+                      src={block.url}
                       alt={`사진 ${pi + 1}`}
                       className="w-full rounded-lg"
                     />
