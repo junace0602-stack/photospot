@@ -5,11 +5,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import BottomNav from './components/BottomNav'
 
-// 자주 사용되는 핵심 페이지 (즉시 로드)
-import MapPage from './pages/MapPage'
-import ListPage from './pages/ListPage'
-import MyPage from './pages/MyPage'
-
 // 로딩 폴백 컴포넌트
 function PageLoader() {
   return (
@@ -19,7 +14,11 @@ function PageLoader() {
   )
 }
 
-// 나머지 페이지는 lazy loading
+// 모든 페이지 lazy loading (초기 번들 크기 최소화)
+// 핵심 페이지는 prefetch로 빠르게 로드
+const MapPage = lazy(() => import('./pages/MapPage'))
+const ListPage = lazy(() => import('./pages/ListPage'))
+const MyPage = lazy(() => import('./pages/MyPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const NicknameSetupPage = lazy(() => import('./pages/NicknameSetupPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
