@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trophy, Crown, Gift, ThumbsUp, X, Check, Flag, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Trophy, Crown, Gift, ThumbsUp, X, Check, Flag, MoreVertical, ChevronLeft, ChevronRight, Square, CheckSquare } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -74,9 +74,240 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('ko-KR')
 }
 
+/* ── 전체화면 포토 뷰어 ─────────────────────────────── */
+
+function PhotoViewer({
+  photos,
+  startIndex,
+  onClose,
+}: {
+  photos: string[]
+  startIndex: number
+  onClose: () => void
+}) {
+  const [index, setIndex] = useState(startIndex)
+
+  // 원본 화질 체크박스 상태 (localStorage 설정을 기본값으로)
+  const [useOriginal, setUseOriginal] = useState(() => {
+    const saved = localStorage.getItem('imageQuality')
+    return saved === 'original'
+  })
+
+  // 줌 상태
+  const [scale, setScale] = useState(1)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+
+  // 터치 관련 ref
+  const touchStartRef = useRef({ x: 0, y: 0 })
+  const lastTapRef = useRef(0)
+  const initialPinchDistRef = useRef(0)
+  const initialScaleRef = useRef(1)
+  const isPinchingRef = useRef(false)
+  const isDraggingRef = useRef(false)
+  const lastPositionRef = useRef({ x: 0, y: 0 })
+  const swipeStartXRef = useRef(0)
+
+  const hasPrev = index > 0
+  const hasNext = index < photos.length - 1
+  const prev = () => { resetZoom(); setIndex((i) => Math.max(0, i - 1)) }
+  const next = () => { resetZoom(); setIndex((i) => Math.min(photos.length - 1, i + 1)) }
+
+  const resetZoom = () => {
+    setScale(1)
+    setPosition({ x: 0, y: 0 })
+  }
+
+  // 사진 변경 시 줌 리셋
+  useEffect(() => {
+    resetZoom()
+  }, [index])
+
+  // 뷰어 열릴 때 스크롤 잠금 + 새로고침 방지
+  useEffect(() => {
+    const originalStyle = document.body.style.cssText
+    document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
+    document.body.style.overscrollBehavior = 'none'
+
+    const preventRefresh = (e: TouchEvent) => {
+      if (e.touches.length > 1) return
+      e.preventDefault()
+    }
+    document.addEventListener('touchmove', preventRefresh, { passive: false })
+
+    return () => {
+      document.body.style.cssText = originalStyle
+      document.removeEventListener('touchmove', preventRefresh)
+    }
+  }, [])
+
+  // 키보드 방향키
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') prev()
+      else if (e.key === 'ArrowRight') next()
+      else if (e.key === 'Escape') {
+        if (scale > 1) resetZoom()
+        else onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose, photos.length, scale])
+
+  // 두 손가락 사이 거리 계산
+  const getDistance = (touches: React.TouchList) => {
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      isPinchingRef.current = true
+      isDraggingRef.current = false
+      initialPinchDistRef.current = getDistance(e.touches)
+      initialScaleRef.current = scale
+    } else if (e.touches.length === 1) {
+      const now = Date.now()
+      if (now - lastTapRef.current < 300) {
+        if (scale > 1) resetZoom()
+        else {
+          setScale(2)
+          setPosition({ x: 0, y: 0 })
+        }
+        lastTapRef.current = 0
+        return
+      }
+      lastTapRef.current = now
+
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      lastPositionRef.current = position
+      swipeStartXRef.current = e.touches[0].clientX
+
+      if (scale > 1) isDraggingRef.current = true
+    }
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && isPinchingRef.current) {
+      const dist = getDistance(e.touches)
+      const newScale = Math.min(3, Math.max(1, initialScaleRef.current * (dist / initialPinchDistRef.current)))
+      setScale(newScale)
+      if (newScale <= 1) setPosition({ x: 0, y: 0 })
+    } else if (e.touches.length === 1 && scale > 1 && isDraggingRef.current) {
+      const dx = e.touches[0].clientX - touchStartRef.current.x
+      const dy = e.touches[0].clientY - touchStartRef.current.y
+      setPosition({
+        x: lastPositionRef.current.x + dx,
+        y: lastPositionRef.current.y + dy,
+      })
+    }
+  }
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (isPinchingRef.current) {
+      isPinchingRef.current = false
+      if (scale <= 1) resetZoom()
+      return
+    }
+
+    if (scale <= 1 && e.changedTouches.length === 1) {
+      const deltaX = e.changedTouches[0].clientX - swipeStartXRef.current
+      if (deltaX < -50) next()
+      else if (deltaX > 50) prev()
+    }
+
+    isDraggingRef.current = false
+  }
+
+  const handleBackgroundClick = () => {
+    if (scale > 1) resetZoom()
+    else onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black flex flex-col"
+      style={{ overscrollBehavior: 'none', touchAction: 'none' }}
+    >
+      {/* 헤더 */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <button type="button" onClick={onClose} className="w-10">
+          <ArrowLeft className="w-6 h-6 text-white" />
+        </button>
+        <span className="text-white text-sm font-medium">
+          {index + 1} / {photos.length}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setUseOriginal(!useOriginal)}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 text-white text-xs hover:bg-white/30 transition-colors"
+          >
+            {useOriginal ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+            <span>원본</span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="flex-1 flex items-center justify-center overflow-hidden relative"
+        style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
+        onClick={handleBackgroundClick}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <img
+          src={photos[index]}
+          alt={`사진 ${index + 1}`}
+          className="max-w-full max-h-full object-contain select-none"
+          style={{
+            transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
+            transition: isPinchingRef.current || isDraggingRef.current ? 'none' : 'transform 0.2s ease-out',
+            willChange: 'transform',
+          }}
+          draggable={false}
+          onClick={(e) => e.stopPropagation()}
+        />
+
+        {/* PC 좌우 화살표 */}
+        {hasPrev && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); prev() }}
+            className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full items-center justify-center"
+          >
+            <ChevronLeft className="w-6 h-6 text-white" />
+          </button>
+        )}
+        {hasNext && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); next() }}
+            className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full items-center justify-center"
+          >
+            <ChevronRight className="w-6 h-6 text-white" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex justify-center gap-1.5 pb-6">
+        {photos.map((_, i) => (
+          <span
+            key={i}
+            className={`w-1.5 h-1.5 rounded-full ${i === index ? 'bg-white' : 'bg-white/40'}`}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── 이미지 캐러셀 ─────────────────────────────────── */
 
-function ImageCarousel({ images }: { images: string[] }) {
+function ImageCarousel({ images, onImageClick }: { images: string[]; onImageClick: (index: number) => void }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const touchStartX = useRef(0)
 
@@ -96,7 +327,7 @@ function ImageCarousel({ images }: { images: string[] }) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative bg-gray-100">
       <div
         className="overflow-hidden"
         onTouchStart={handleTouchStart}
@@ -107,14 +338,20 @@ function ImageCarousel({ images }: { images: string[] }) {
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}
         >
           {images.map((url, idx) => (
-            <img
+            <button
               key={idx}
-              src={url}
-              alt={`이미지 ${idx + 1}`}
-              loading="lazy"
-              decoding="async"
-              className="w-full h-48 object-cover shrink-0"
-            />
+              type="button"
+              onClick={() => onImageClick(idx)}
+              className="w-full shrink-0"
+            >
+              <img
+                src={url}
+                alt={`이미지 ${idx + 1}`}
+                loading="lazy"
+                decoding="async"
+                className="w-full h-56 object-contain"
+              />
+            </button>
           ))}
         </div>
       </div>
@@ -530,6 +767,9 @@ export default function EventDetailPage() {
   // 더보기 메뉴
   const [showMenu, setShowMenu] = useState(false)
 
+  // 전체화면 뷰어
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
+
   const loadData = useCallback(async () => {
     if (!eventId) return
 
@@ -705,9 +945,11 @@ export default function EventDetailPage() {
         <div className="bg-white mx-4 mt-4 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {/* 이미지 캐러셀 (image_urls가 있으면 사용, 없으면 thumbnail_url 사용) */}
           {(event.image_urls && event.image_urls.length > 0) ? (
-            <ImageCarousel images={event.image_urls} />
+            <ImageCarousel images={event.image_urls} onImageClick={(idx) => setViewerIndex(idx)} />
           ) : event.thumbnail_url ? (
-            <img src={event.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-full h-48 object-cover" />
+            <button type="button" onClick={() => setViewerIndex(0)} className="w-full bg-gray-100">
+              <img src={event.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-full h-56 object-contain" />
+            </button>
           ) : null}
           <div className="p-4 space-y-3">
             <div className="flex items-center gap-2 flex-wrap">
@@ -946,6 +1188,15 @@ export default function EventDetailPage() {
           eventId={eventId}
           onClose={() => setShowReportModal(false)}
           onSuccess={handleReportSuccess}
+        />
+      )}
+
+      {/* 전체화면 포토 뷰어 */}
+      {viewerIndex !== null && (
+        <PhotoViewer
+          photos={event.image_urls && event.image_urls.length > 0 ? event.image_urls : (event.thumbnail_url ? [event.thumbnail_url] : [])}
+          startIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
         />
       )}
     </div>

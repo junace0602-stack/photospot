@@ -1129,7 +1129,9 @@ export default function ListPage() {
                     className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-left"
                   >
                     {ev.thumbnail_url && (
-                      <LazyImage src={ev.thumbnail_url} className="w-full h-40 object-cover" />
+                      <div className="bg-gray-100">
+                        <LazyImage src={ev.thumbnail_url} className="w-full h-40 object-contain" />
+                      </div>
                     )}
                     <div className="p-4">
                       <div className="flex items-center gap-2 mb-2">
