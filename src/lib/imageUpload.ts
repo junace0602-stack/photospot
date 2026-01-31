@@ -13,9 +13,9 @@ const ALLOWED_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif',
 ])
 
-const MAX_DIMENSION = 1920
+const MAX_DIMENSION = 2560
 const THUMBNAIL_SIZE = 400
-const WEBP_QUALITY = 0.85
+const WEBP_QUALITY = 0.90
 const THUMBNAIL_QUALITY = 0.82
 
 const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,.webp'
@@ -60,7 +60,7 @@ async function convertHeic(file: File): Promise<Blob> {
 
 /**
  * Canvas를 이용해 이미지를 WebP로 변환 + 리사이즈 + 압축
- * - maxDim: 최대 크기 (기본 1920px, 비율 유지)
+ * - maxDim: 최대 크기 (기본 2560px, 비율 유지)
  * - quality: WebP 품질 (기본 0.85)
  * - crop: true면 중앙 크롭하여 정사각형으로 만듦 (썸네일용)
  */
@@ -125,7 +125,7 @@ function toWebP(
 /**
  * Supabase Storage images 버킷에 업로드 후 공개 URL 반환
  * - 지원 형식: JPEG, PNG, HEIC/HEIF, WEBP
- * - 모든 이미지를 WebP로 변환 (85% 품질, 최대 1920px)
+ * - 모든 이미지를 WebP로 변환 (90% 품질, 최대 2560px)
  * @deprecated uploadImageWithThumbnail 사용 권장
  */
 export async function uploadImage(file: File): Promise<string> {
@@ -135,7 +135,7 @@ export async function uploadImage(file: File): Promise<string> {
 
 /**
  * 이미지 + 썸네일(400x400)을 함께 업로드
- * - 원본: 최대 1920px, WebP 85% 품질
+ * - 원본: 최대 2560px, WebP 90% 품질
  * - 썸네일: 400x400px 중앙 크롭, WebP 82% 품질
  */
 export async function uploadImageWithThumbnail(file: File): Promise<UploadResult> {
