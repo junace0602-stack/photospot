@@ -83,7 +83,7 @@ interface ListItem {
 
 /* ── 상수 ─────────────────────────────────────────── */
 
-const SECTIONS = ['전체', '일반', '사진', '장비', '챌린지'] as const
+const SECTIONS = ['전체', '일반', '사진', '장비', '챌린지', '공지'] as const
 type Section = (typeof SECTIONS)[number]
 
 const SORT_OPTIONS = ['최신순', '인기글'] as const
@@ -258,7 +258,7 @@ const Lightbox = memo(function Lightbox({
 
 export default function ListPage() {
   const navigate = useNavigate()
-  const { loggedIn, isAdminMode, user } = useAuth()
+  const { loggedIn, isAdminMode, user, role } = useAuth()
   const { isBlocked } = useBlockedUsers()
 
   /* URL 검색 파라미터로 탭 복원 (브라우저 뒤로가기 시 자동 유지) */
@@ -620,6 +620,10 @@ export default function ListPage() {
     if (section !== '전체' && section !== '챌린지') {
       query = query.eq('section', section)
     }
+    // 전체 탭에서는 공지 제외 (공지 탭에서만 표시)
+    if (section === '전체') {
+      query = query.neq('section', '공지')
+    }
 
     // 인기글 필터
     if (sort === '인기글') {
@@ -746,6 +750,8 @@ export default function ListPage() {
   const isPhoto = section === '사진'
   const isEvent = section === '챌린지'
   const isEquipment = section === '장비'
+  const isNotice = section === '공지'
+  const isSuperadmin = role === 'superadmin'
   const [showEndedEvents, setShowEndedEvents] = useState(false)
 
   /* ── 사진 탭 뷰 모드 (localStorage 저장, 기본값: 리스트) ── */
@@ -1316,11 +1322,11 @@ export default function ListPage() {
         )}
       </div>
 
-      {/* 글쓰기 */}
-      {loggedIn && (
+      {/* 글쓰기 (공지 탭은 superadmin만) */}
+      {loggedIn && (!isNotice || isSuperadmin) && (
         <button
           type="button"
-          onClick={() => navigate(isEvent ? '/events/new' : '/posts/new')}
+          onClick={() => navigate(isEvent ? '/events/new' : isNotice ? '/posts/new?section=공지' : '/posts/new')}
           className="absolute bottom-6 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-10"
         >
           <Pencil className="w-6 h-6" />

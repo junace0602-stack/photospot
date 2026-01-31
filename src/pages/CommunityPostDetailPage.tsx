@@ -417,7 +417,7 @@ function PhotoViewer({
 export default function CommunityPostDetailPage() {
   const { postId } = useParams()
   const navigate = useNavigate()
-  const { user, profile, loggedIn, isAdminMode } = useAuth()
+  const { user, profile, loggedIn, isAdminMode, role } = useAuth()
   const { isBlocked, blockUser } = useBlockedUsers()
 
   const [post, setPost] = useState<CommunityPost | null>(null)
@@ -670,6 +670,10 @@ export default function CommunityPostDetailPage() {
 
   const isOwner = !!user && !!post && user.id === post.user_id
   const isAdmin = isAdminMode
+  const isSuperadmin = role === 'superadmin'
+  const isNotice = post?.section === '공지'
+  // 공지글은 superadmin만 수정/삭제 가능
+  const canEditDelete = isNotice ? isSuperadmin : (isOwner || isAdmin)
 
   const anonMap = useMemo(
     () => (post ? buildAnonMap(post.user_id, comments) : new Map<string, number>()),
@@ -827,7 +831,7 @@ export default function CommunityPostDetailPage() {
                 </span>
               </div>
             </div>
-            {(isOwner || isAdmin) && (
+            {canEditDelete && (
               <div className="relative shrink-0">
                 <button
                   type="button"

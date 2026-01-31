@@ -18,8 +18,9 @@ type PhotoBlock = { type: 'photo'; id: string; url: string; thumbnailUrl?: strin
 type TextBlock = { type: 'text'; id: string; text: string }
 type ContentBlock = PhotoBlock | TextBlock
 
-type BoardType = '출사지' | '일반' | '사진' | '장비'
+type BoardType = '출사지' | '일반' | '사진' | '장비' | '공지'
 const BOARD_TYPES: BoardType[] = ['출사지', '일반', '사진', '장비']
+const BOARD_TYPES_WITH_NOTICE: BoardType[] = ['출사지', '일반', '사진', '장비', '공지']
 
 let blockId = 0
 const newId = () => String(++blockId)
@@ -106,7 +107,7 @@ export default function CreatePostPage() {
   const { spotId: paramSpotId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, profile } = useAuth()
+  const { user, profile, role } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [submitting, setSubmitting] = useState(false)
   const [isAnonymous, setIsAnonymous] = useState(false)
@@ -124,13 +125,26 @@ export default function CreatePostPage() {
   const [challenges, setChallenges] = useState<{ id: string; title: string }[]>([])
   const [selectedChallengeId, setSelectedChallengeId] = useState<string>(challengeIdParam ?? '')
 
+  // 공지 관련 (superadmin만)
+  const querySectionParam = searchParams.get('section')
+  const isSuperadmin = role === 'superadmin'
+
   // 수정 모드
   const editPost = (location.state as { editPost?: Post } | null)?.editPost ?? null
   const isEditMode = !!editPost
 
   // 게시판 타입
   const initialSpotId = paramSpotId ?? querySpotId ?? ''
-  const [boardType, setBoardType] = useState<BoardType>(initialSpotId || queryLat ? '출사지' : challengeIdParam ? '사진' : '출사지')
+  const [boardType, setBoardType] = useState<BoardType>(() => {
+    // 공지 섹션 파라미터가 있고 superadmin이면 공지로 시작
+    if (querySectionParam === '공지' && isSuperadmin) return '공지'
+    if (initialSpotId || queryLat) return '출사지'
+    if (challengeIdParam) return '사진'
+    return '출사지'
+  })
+
+  // 사용 가능한 게시판 타입 (superadmin만 공지 포함)
+  const availableBoardTypes = isSuperadmin ? BOARD_TYPES_WITH_NOTICE : BOARD_TYPES
   const isSpot = boardType === '출사지'
 
   // 국내/해외 구분
@@ -932,13 +946,13 @@ export default function CreatePostPage() {
       <div className="flex-1 overflow-y-auto">
         {/* 게시판 타입 선택 */}
         {!paramSpotId && !isEditMode && (
-          <div className="flex gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
-            {BOARD_TYPES.map((bt) => (
+          <div className="flex gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200 overflow-x-auto">
+            {availableBoardTypes.map((bt) => (
               <button
                 key={bt}
                 type="button"
                 onClick={() => setBoardType(bt)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${
                   boardType === bt
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-600 border border-gray-300'
