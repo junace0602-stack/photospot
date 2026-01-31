@@ -64,18 +64,6 @@ export async function applyPenalty(
   adminId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // 현재 제재 횟수 조회
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('penalty_count')
-      .eq('id', userId)
-      .single()
-
-    if (profileError) {
-      return { success: false, error: '유저 정보를 찾을 수 없습니다.' }
-    }
-
-    const currentCount = profile?.penalty_count ?? 0
     const expiresAt = calculateExpiry(penaltyType)
 
     // user_penalties에 기록
@@ -91,48 +79,33 @@ export async function applyPenalty(
       return { success: false, error: '제재 기록 실패' }
     }
 
-    // 경고가 아닌 경우에만 정지 적용
-    if (penaltyType !== 'warning') {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          penalty_count: currentCount + 1,
-          suspended_until: penaltyType === 'permanent' ? '9999-12-31T23:59:59Z' : expiresAt?.toISOString(),
-        })
-        .eq('id', userId)
-
-      if (updateError) {
-        return { success: false, error: '프로필 업데이트 실패' }
-      }
-    } else {
-      // 경고는 횟수만 증가
-      await supabase
-        .from('profiles')
-        .update({ penalty_count: currentCount + 1 })
-        .eq('id', userId)
-    }
-
     return { success: true }
   } catch {
     return { success: false, error: '알 수 없는 오류' }
   }
 }
 
-/** 유저의 정지 상태 확인 */
+/** 유저의 정지 상태 확인 (user_penalties 테이블 사용) */
 export async function checkSuspension(userId: string): Promise<SuspensionStatus> {
   try {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('suspended_until')
-      .eq('id', userId)
+    const now = new Date().toISOString()
+
+    // 현재 유효한 정지 제재 조회 (경고 제외)
+    const { data: penalty, error } = await supabase
+      .from('user_penalties')
+      .select('expires_at')
+      .eq('user_id', userId)
+      .neq('penalty_type', 'warning')
+      .or(`expires_at.gt.${now},expires_at.eq.9999-12-31T23:59:59+00:00`)
+      .order('expires_at', { ascending: false })
+      .limit(1)
       .single()
 
-    if (error || !profile?.suspended_until) {
+    if (error || !penalty?.expires_at) {
       return { isSuspended: false, suspendedUntil: null, message: null }
     }
 
-    const suspendedUntil = new Date(profile.suspended_until)
-    const now = new Date()
+    const suspendedUntil = new Date(penalty.expires_at)
 
     // 영구 정지 체크 (9999년)
     if (suspendedUntil.getFullYear() === 9999) {
@@ -144,38 +117,33 @@ export async function checkSuspension(userId: string): Promise<SuspensionStatus>
     }
 
     // 기간 정지 체크
-    if (suspendedUntil > now) {
-      const dateStr = suspendedUntil.toLocaleDateString('ko-KR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-      return {
-        isSuspended: true,
-        suspendedUntil,
-        message: `계정이 정지되었습니다. 해제일: ${dateStr}`,
-      }
+    const dateStr = suspendedUntil.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+    return {
+      isSuspended: true,
+      suspendedUntil,
+      message: `계정이 정지되었습니다. 해제일: ${dateStr}`,
     }
-
-    // 정지 기간 만료 → 자동 해제
-    await supabase
-      .from('profiles')
-      .update({ suspended_until: null })
-      .eq('id', userId)
-
-    return { isSuspended: false, suspendedUntil: null, message: null }
   } catch {
     return { isSuspended: false, suspendedUntil: null, message: null }
   }
 }
 
-/** 제재 해제 */
+/** 제재 해제 (현재 유효한 정지 제재 삭제) */
 export async function removePenalty(userId: string): Promise<boolean> {
   try {
+    const now = new Date().toISOString()
+
+    // 현재 유효한 정지 제재 삭제 (경고 제외, 만료되지 않은 것)
     const { error } = await supabase
-      .from('profiles')
-      .update({ suspended_until: null })
-      .eq('id', userId)
+      .from('user_penalties')
+      .delete()
+      .eq('user_id', userId)
+      .neq('penalty_type', 'warning')
+      .or(`expires_at.gt.${now},expires_at.eq.9999-12-31T23:59:59+00:00`)
 
     return !error
   } catch {

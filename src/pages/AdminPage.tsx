@@ -473,9 +473,9 @@ interface HiddenItem {
 }
 
 interface SuspendedUser {
-  id: string
+  user_id: string
   nickname: string
-  suspended_until: string | null
+  expires_at: string | null
   penalty_count: number
 }
 
@@ -780,17 +780,71 @@ function BanTab() {
   const [penaltyHistory, setPenaltyHistory] = useState<UserPenalty[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
-  // 정지된 유저 목록 로드
+  // 정지된 유저 목록 로드 (user_penalties 테이블 사용)
   const loadSuspendedUsers = async () => {
     setLoading(true)
     const now = new Date().toISOString()
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, nickname, suspended_until, penalty_count')
-      .or(`suspended_until.gt.${now},suspended_until.eq.9999-12-31T23:59:59+00:00`)
-      .order('suspended_until', { ascending: false })
 
-    if (data) setSuspendedUsers(data as SuspendedUser[])
+    // 현재 정지 중인 유저의 최신 제재 조회
+    const { data: penalties } = await supabase
+      .from('user_penalties')
+      .select('user_id, expires_at, penalty_type')
+      .or(`expires_at.gt.${now},expires_at.eq.9999-12-31T23:59:59+00:00`)
+      .neq('penalty_type', 'warning')
+      .order('expires_at', { ascending: false })
+
+    if (!penalties || penalties.length === 0) {
+      setSuspendedUsers([])
+      setLoading(false)
+      return
+    }
+
+    // 유저별 최신 제재만 추출 (중복 제거)
+    const userPenaltyMap = new Map<string, { expires_at: string | null }>()
+    for (const p of penalties) {
+      if (!userPenaltyMap.has(p.user_id)) {
+        userPenaltyMap.set(p.user_id, { expires_at: p.expires_at })
+      }
+    }
+
+    const userIds = Array.from(userPenaltyMap.keys())
+
+    // 닉네임 및 제재 횟수 조회
+    const [profilesRes, countRes] = await Promise.all([
+      supabase.from('profiles').select('id, nickname').in('id', userIds),
+      supabase.from('user_penalties').select('user_id').in('user_id', userIds),
+    ])
+
+    const nicknameMap = new Map<string, string>()
+    if (profilesRes.data) {
+      for (const p of profilesRes.data) {
+        nicknameMap.set(p.id, p.nickname)
+      }
+    }
+
+    // 유저별 제재 횟수 계산
+    const penaltyCountMap = new Map<string, number>()
+    if (countRes.data) {
+      for (const p of countRes.data) {
+        penaltyCountMap.set(p.user_id, (penaltyCountMap.get(p.user_id) ?? 0) + 1)
+      }
+    }
+
+    const result: SuspendedUser[] = userIds.map((userId) => ({
+      user_id: userId,
+      nickname: nicknameMap.get(userId) ?? '알 수 없음',
+      expires_at: userPenaltyMap.get(userId)?.expires_at ?? null,
+      penalty_count: penaltyCountMap.get(userId) ?? 0,
+    }))
+
+    // 만료일 기준 정렬 (영구 정지가 먼저)
+    result.sort((a, b) => {
+      if (!a.expires_at) return 1
+      if (!b.expires_at) return -1
+      return new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime()
+    })
+
+    setSuspendedUsers(result)
     setLoading(false)
   }
 
@@ -977,20 +1031,20 @@ function BanTab() {
           ) : (
             <div className="space-y-2">
               {suspendedUsers.map((u) => (
-                <div key={u.id} className="bg-white rounded-xl px-4 py-3 shadow-sm">
+                <div key={u.user_id} className="bg-white rounded-xl px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800">{u.nickname}</p>
                       <p className="text-xs text-gray-400">
-                        {formatSuspension(u.suspended_until)} · 누적 {u.penalty_count}회
+                        {formatSuspension(u.expires_at)} · 누적 {u.penalty_count}회
                       </p>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
-                      u.suspended_until && new Date(u.suspended_until).getFullYear() === 9999
+                      u.expires_at && new Date(u.expires_at).getFullYear() === 9999
                         ? 'bg-red-100 text-red-600'
                         : 'bg-orange-100 text-orange-600'
                     }`}>
-                      {u.suspended_until && new Date(u.suspended_until).getFullYear() === 9999
+                      {u.expires_at && new Date(u.expires_at).getFullYear() === 9999
                         ? '영구 정지'
                         : `${u.penalty_count}차 정지`}
                     </span>
@@ -998,14 +1052,14 @@ function BanTab() {
                   <div className="flex gap-2 mt-2">
                     <button
                       type="button"
-                      onClick={() => openHistory(u.id, u.nickname)}
+                      onClick={() => openHistory(u.user_id, u.nickname)}
                       className="flex-1 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium"
                     >
                       이력 보기
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleRemovePenalty(u.id, u.nickname)}
+                      onClick={() => handleRemovePenalty(u.user_id, u.nickname)}
                       className="flex-1 py-1.5 rounded-lg bg-green-50 text-green-600 text-xs font-medium"
                     >
                       제재 해제
