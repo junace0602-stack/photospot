@@ -64,12 +64,11 @@ export default function UserPostsPage() {
         .eq('is_anonymous', false)
         .order('created_at', { ascending: false })
 
-      // 출사지 글 (익명 제외 - is_anonymous가 false이거나 null인 경우 포함)
+      // 출사지 글 (posts 테이블에는 is_anonymous 없음)
       const { data: spotPosts } = await supabase
         .from('posts')
-        .select('id, place_id, title, thumbnail_url, created_at, likes_count, comment_count, is_anonymous')
+        .select('id, place_id, title, thumbnail_url, created_at, likes_count, comment_count')
         .eq('user_id', userId)
-        .or('is_anonymous.eq.false,is_anonymous.is.null')
         .order('created_at', { ascending: false })
 
       // 합쳐서 최신순 정렬
