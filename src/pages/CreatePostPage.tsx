@@ -624,7 +624,8 @@ export default function CreatePostPage() {
 
     setBlocks((prev) => {
       const last = prev[prev.length - 1]
-      if (last.type === 'text' && !last.text.trim()) {
+      // 블록이 2개 이상이고 마지막이 빈 텍스트면 제거 (맨 앞 텍스트는 유지)
+      if (prev.length > 1 && last.type === 'text' && !last.text.trim()) {
         return [...prev.slice(0, -1), ...newBlocks]
       }
       return [...prev, ...newBlocks]
