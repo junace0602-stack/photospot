@@ -122,8 +122,8 @@ function getEventStatus(event: Event): { label: string; color: string } {
  * Supabase Storage 이미지 URL에 리사이즈 + 품질 파라미터 추가
  * - width: 리사이즈 너비 (px)
  * - quality: 압축 품질 (1-100)
- * - 그리드용: width=400, quality=75 (레티나 대응, 적절한 화질)
- * - 리스트용: width=600, quality=80 (큰 썸네일)
+ * - 그리드용: width=400, quality=75 (레티나 대응)
+ * - 리스트용: width=1200, quality=82 (큰 썸네일)
  */
 function getOptimizedImageUrl(
   url: string,
@@ -1203,7 +1203,7 @@ export default function ListPage() {
                     {/* 큰 썸네일 이미지 */}
                     <div className="relative w-full aspect-[4/3] bg-gray-100">
                       <LazyImage
-                        src={getOptimizedImageUrl(item.thumbnail_url!, 800, 80)}
+                        src={getOptimizedImageUrl(item.thumbnail_url!, 1200, 82)}
                         alt={item.title}
                         className="w-full h-full object-cover"
                       />

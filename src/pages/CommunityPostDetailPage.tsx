@@ -30,7 +30,27 @@ import {
   Camera,
   Calendar,
   Aperture,
+  Loader2,
 } from 'lucide-react'
+
+/* ── 이미지 최적화 URL ─────────────────────────────── */
+
+/**
+ * Supabase Storage 이미지 URL에 리사이즈 파라미터 추가
+ * - 글 상세: 1200px
+ * - 전체화면: 원본 (파라미터 없음)
+ */
+function getOptimizedImageUrl(url: string, width: number, quality: number = 85): string {
+  if (!url) return url
+  if (!url.includes('/storage/v1/object/public/')) return url
+
+  const transformedUrl = url.replace(
+    '/storage/v1/object/public/',
+    '/storage/v1/render/image/public/'
+  )
+  const separator = transformedUrl.includes('?') ? '&' : '?'
+  return `${transformedUrl}${separator}width=${width}&quality=${quality}&resize=contain`
+}
 
 /* ── 타입 ─────────────────────────────────────────── */
 
@@ -99,6 +119,7 @@ function PhotoViewer({
 }) {
   const [index, setIndex] = useState(startIndex)
   const [showExif, setShowExif] = useState(false)
+  const [loadingImages, setLoadingImages] = useState<Set<number>>(new Set([startIndex]))
 
   // 현재 사진의 EXIF 데이터
   const currentExif = exifDataList?.[index] ?? null
@@ -119,8 +140,12 @@ function PhotoViewer({
 
   const hasPrev = index > 0
   const hasNext = index < photos.length - 1
-  const prev = () => { resetZoom(); setIndex((i) => Math.max(0, i - 1)) }
-  const next = () => { resetZoom(); setIndex((i) => Math.min(photos.length - 1, i + 1)) }
+  const prev = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index - 1)); setIndex((i) => Math.max(0, i - 1)) }
+  const next = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index + 1)); setIndex((i) => Math.min(photos.length - 1, i + 1)) }
+
+  const handleImageLoad = (idx: number) => {
+    setLoadingImages((s) => { const n = new Set(s); n.delete(idx); return n })
+  }
 
   const resetZoom = () => {
     setScale(1)
@@ -268,15 +293,22 @@ function PhotoViewer({
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
+        {/* 로딩 스피너 */}
+        {loadingImages.has(index) && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <Loader2 className="w-10 h-10 text-white animate-spin" />
+          </div>
+        )}
         <img
           src={photos[index]}
           alt={`사진 ${index + 1}`}
-          className="max-w-full max-h-full object-contain select-none"
+          className={`max-w-full max-h-full object-contain select-none transition-opacity ${loadingImages.has(index) ? 'opacity-0' : 'opacity-100'}`}
           style={{
             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
             transition: isPinchingRef.current || isDraggingRef.current ? 'none' : 'transform 0.2s ease-out',
           }}
           draggable={false}
+          onLoad={() => handleImageLoad(index)}
           onClick={(e) => {
             e.stopPropagation()
             if (showExif) setShowExif(false)
@@ -838,7 +870,7 @@ export default function CommunityPostDetailPage() {
                 className="w-full mb-3"
                 onClick={() => setViewerIndex(i)}
               >
-                <img src={url} alt={`사진 ${i + 1}`} className="w-full rounded-lg" />
+                <img src={getOptimizedImageUrl(url, 1200, 85)} alt={`사진 ${i + 1}`} className="w-full rounded-lg" />
               </button>
             ))}
           </div>
