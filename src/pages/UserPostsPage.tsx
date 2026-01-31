@@ -64,10 +64,10 @@ export default function UserPostsPage() {
         .eq('is_anonymous', false)
         .order('created_at', { ascending: false })
 
-      // 출사지 글 (posts 테이블에는 is_anonymous 없음)
+      // 출사지 글
       const { data: spotPosts } = await supabase
         .from('posts')
-        .select('id, place_id, title, thumbnail_url, created_at, likes_count, comment_count')
+        .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
