@@ -618,9 +618,9 @@ export default function CreatePostPage() {
         id,
         url: URL.createObjectURL(file),
       })
+      // 각 사진 뒤에 텍스트 블록 추가 (블록 에디터 형태)
+      newBlocks.push({ type: 'text', id: newId(), text: '' })
     })
-    // 사진들 뒤에 텍스트 블록 하나만 추가
-    newBlocks.push({ type: 'text', id: newId(), text: '' })
 
     setBlocks((prev) => {
       const last = prev[prev.length - 1]
@@ -1203,7 +1203,23 @@ export default function CreatePostPage() {
               <textarea
                 key={block.id}
                 value={block.text}
-                onChange={(e) => updateText(block.id, e.target.value)}
+                onChange={(e) => {
+                  updateText(block.id, e.target.value)
+                  // 자동 높이 조절
+                  e.target.style.height = 'auto'
+                  e.target.style.height = e.target.scrollHeight + 'px'
+                }}
+                onFocus={(e) => {
+                  // 포커스 시 높이 조절
+                  e.target.style.height = 'auto'
+                  e.target.style.height = Math.max(e.target.scrollHeight, 60) + 'px'
+                }}
+                onBlur={(e) => {
+                  // 내용 없으면 기본 높이로
+                  if (!e.target.value.trim()) {
+                    e.target.style.height = 'auto'
+                  }
+                }}
                 placeholder={showGuide ? `내용을 입력하세요
 
 📋 커뮤니티 가이드
@@ -1214,8 +1230,10 @@ export default function CreatePostPage() {
 
 ✗ 광고/홍보, 스팸/도배
 ✗ 정치, 극단적 표현
-✗ 지역/인종 비하, 고인 모독` : ''}
-                className="w-full min-h-[300px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 placeholder:text-gray-400"
+✗ 지역/인종 비하, 고인 모독` : '텍스트 입력...'}
+                className={`w-full text-sm text-gray-800 leading-relaxed outline-none resize-none placeholder:text-gray-400 ${
+                  showGuide ? 'min-h-[200px] mb-4' : 'min-h-[36px] py-2 mb-2'
+                }`}
               />
             )
           })}
