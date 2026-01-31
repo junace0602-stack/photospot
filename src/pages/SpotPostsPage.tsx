@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, ThumbsUp, MapPin, FileText, Tag } from 'lucide-react'
+import { ArrowLeft, Plus, ThumbsUp, MapPin, FileText, Tag, Star } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Place, Post } from '../lib/types'
 import { useAuth } from '../contexts/AuthContext'
@@ -17,12 +17,14 @@ let cachedUserPos: { lat: number; lng: number } | null = null
 export default function SpotPostsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { loggedIn } = useAuth()
+  const { user, loggedIn } = useAuth()
 
   const [place, setPlace] = useState<Place | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [userPos, setUserPos] = useState(cachedUserPos)
+  const [favorited, setFavorited] = useState(false)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
 
   // 사용자 위치 가져오기 (캐시 없을 때만)
   useEffect(() => {
@@ -70,6 +72,34 @@ export default function SpotPostsPage() {
     load()
   }, [id])
 
+  // 즐겨찾기 상태 조회
+  useEffect(() => {
+    if (!id || !user) return
+    supabase
+      .from('favorites')
+      .select('id')
+      .eq('place_id', id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setFavorited(!!data))
+  }, [id, user])
+
+  // 즐겨찾기 토글
+  const toggleFavorite = useCallback(async () => {
+    if (!id || !user || favoriteLoading) return
+    setFavoriteLoading(true)
+
+    if (favorited) {
+      await supabase.from('favorites').delete().eq('place_id', id).eq('user_id', user.id)
+      setFavorited(false)
+    } else {
+      await supabase.from('favorites').insert({ place_id: id, user_id: user.id })
+      setFavorited(true)
+    }
+
+    setFavoriteLoading(false)
+  }, [id, user, favorited, favoriteLoading])
+
   const placeName = place?.name ?? '장소'
 
   if (loading) {
@@ -114,11 +144,27 @@ export default function SpotPostsPage() {
 
   return (
     <div className="relative flex flex-col h-full bg-gray-50">
-      <header className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
-        <button type="button" onClick={() => navigate(-1)}>
-          <ArrowLeft className="w-6 h-6 text-gray-700" />
-        </button>
-        <h1 className="text-lg font-bold">{placeName}</h1>
+      <header className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => navigate(-1)}>
+            <ArrowLeft className="w-6 h-6 text-gray-700" />
+          </button>
+          <h1 className="text-lg font-bold">{placeName}</h1>
+        </div>
+        {loggedIn && (
+          <button
+            type="button"
+            onClick={toggleFavorite}
+            disabled={favoriteLoading}
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <Star
+              className={`w-6 h-6 ${
+                favorited ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'
+              }`}
+            />
+          </button>
+        )}
       </header>
 
       {/* 상단 배너 */}
