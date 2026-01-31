@@ -13,6 +13,7 @@ interface PostItem {
   id: string
   type: 'community' | 'spot'
   spot_id?: string
+  section?: string  // 커뮤니티 글의 카테고리 (일반, 사진, 장비, 공지 등)
   title: string
   thumbnail_url: string | null
   created_at: string
@@ -58,7 +59,7 @@ export default function UserPostsPage() {
       // 커뮤니티 글 (익명 제외)
       const { data: communityPosts } = await supabase
         .from('community_posts')
-        .select('id, title, thumbnail_url, created_at, likes_count, comment_count')
+        .select('id, section, title, thumbnail_url, created_at, likes_count, comment_count')
         .eq('user_id', userId)
         .eq('is_anonymous', false)
         .order('created_at', { ascending: false })
@@ -76,6 +77,7 @@ export default function UserPostsPage() {
         ...(communityPosts ?? []).map((p) => ({
           id: p.id,
           type: 'community' as const,
+          section: p.section,
           title: p.title,
           thumbnail_url: p.thumbnail_url,
           created_at: p.created_at,
@@ -173,7 +175,7 @@ export default function UserPostsPage() {
                     <span>댓글 {post.comment_count}</span>
                   </div>
                   <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] rounded bg-gray-100 text-gray-500">
-                    {post.type === 'community' ? '커뮤니티' : '출사지'}
+                    {post.type === 'spot' ? '출사지' : (post.section ?? '일반')}
                   </span>
                 </div>
               </button>
