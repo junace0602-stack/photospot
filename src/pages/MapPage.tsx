@@ -1223,7 +1223,13 @@ export default function MapPage() {
     if (!bannerPlace) return
     if (bannerPlace.type === 'registered') {
       // 등록된 출사지 → spotId 전달
-      navigate(`/posts/new?spotId=${bannerPlace.id}`)
+      const params = new URLSearchParams({ spotId: bannerPlace.id })
+      // 해외 모드면 region, country 추가
+      if (region === 'international' && countryFilter) {
+        params.set('region', 'overseas')
+        params.set('country', countryFilter)
+      }
+      navigate(`/posts/new?${params}`)
     } else {
       // 미등록 장소 → lat, lng, name 전달
       const params = new URLSearchParams({
@@ -1231,9 +1237,14 @@ export default function MapPage() {
         lng: String(bannerPlace.lng),
         name: bannerPlace.name,
       })
+      // 해외 모드면 region, country 추가
+      if (region === 'international' && countryFilter) {
+        params.set('region', 'overseas')
+        params.set('country', countryFilter)
+      }
       navigate(`/posts/new?${params}`)
     }
-  }, [bannerPlace, navigate])
+  }, [bannerPlace, navigate, region, countryFilter])
 
   // 배너 닫기
   const closeBanner = useCallback(() => {
@@ -2066,7 +2077,7 @@ export default function MapPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              navigate('/posts/new', { state: { country: countryFilter } })
+                              navigate(`/posts/new?region=overseas&country=${encodeURIComponent(countryFilter)}`)
                             }}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
                           >

@@ -26,6 +26,79 @@ let blockId = 0
 const newId = () => String(++blockId)
 
 const ALL_TAGS = ['자연', '바다', '도시', '실내', '야경', '일출/일몰', '건축', '카페', '전통', '인물'] as const
+
+// 나라별 중심 좌표 (GPS 버튼용)
+const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }> = {
+  '일본': { lat: 35.6762, lng: 139.6503, zoom: 10 },
+  '대만': { lat: 25.033, lng: 121.5654, zoom: 10 },
+  '태국': { lat: 13.7563, lng: 100.5018, zoom: 10 },
+  '베트남': { lat: 21.0285, lng: 105.8542, zoom: 10 },
+  '미국': { lat: 40.7128, lng: -74.006, zoom: 10 },
+  '중국': { lat: 39.9042, lng: 116.4074, zoom: 10 },
+  '영국': { lat: 51.5074, lng: -0.1278, zoom: 10 },
+  '프랑스': { lat: 48.8566, lng: 2.3522, zoom: 10 },
+  '독일': { lat: 52.52, lng: 13.405, zoom: 10 },
+  '이탈리아': { lat: 41.9028, lng: 12.4964, zoom: 10 },
+  '스페인': { lat: 40.4168, lng: -3.7038, zoom: 10 },
+  '호주': { lat: -33.8688, lng: 151.2093, zoom: 10 },
+  '캐나다': { lat: 43.6532, lng: -79.3832, zoom: 10 },
+  '인도네시아': { lat: -6.2088, lng: 106.8456, zoom: 10 },
+  '말레이시아': { lat: 3.139, lng: 101.6869, zoom: 10 },
+  '싱가포르': { lat: 1.3521, lng: 103.8198, zoom: 11 },
+  '필리핀': { lat: 14.5995, lng: 120.9842, zoom: 10 },
+  '홍콩': { lat: 22.3193, lng: 114.1694, zoom: 11 },
+  '스위스': { lat: 46.9481, lng: 7.4474, zoom: 10 },
+  '뉴질랜드': { lat: -36.8485, lng: 174.7633, zoom: 10 },
+  '터키': { lat: 41.0082, lng: 28.9784, zoom: 10 },
+  '멕시코': { lat: 19.4326, lng: -99.1332, zoom: 10 },
+  '브라질': { lat: -23.5505, lng: -46.6333, zoom: 10 },
+  '네덜란드': { lat: 52.3676, lng: 4.9041, zoom: 10 },
+  '체코': { lat: 50.0755, lng: 14.4378, zoom: 10 },
+  '그리스': { lat: 37.9838, lng: 23.7275, zoom: 10 },
+  '노르웨이': { lat: 59.9139, lng: 10.7522, zoom: 10 },
+  '스웨덴': { lat: 59.3293, lng: 18.0686, zoom: 10 },
+  '아이슬란드': { lat: 64.1466, lng: -21.9426, zoom: 10 },
+  '크로아티아': { lat: 45.815, lng: 15.9819, zoom: 10 },
+  '포르투갈': { lat: 38.7223, lng: -9.1393, zoom: 10 },
+  '몽골': { lat: 47.8864, lng: 106.9057, zoom: 10 },
+  '캄보디아': { lat: 11.5564, lng: 104.9282, zoom: 10 },
+  '라오스': { lat: 17.9757, lng: 102.6331, zoom: 10 },
+  '네팔': { lat: 27.7172, lng: 85.324, zoom: 10 },
+  '몰디브': { lat: 4.1755, lng: 73.5093, zoom: 10 },
+  '괌': { lat: 13.4443, lng: 144.7937, zoom: 11 },
+  '사이판': { lat: 15.1979, lng: 145.7252, zoom: 12 },
+  '인도': { lat: 28.6139, lng: 77.209, zoom: 10 },
+  '카자흐스탄': { lat: 43.238, lng: 76.9458, zoom: 10 },
+  '우즈베키스탄': { lat: 41.2995, lng: 69.2401, zoom: 10 },
+  '오스트리아': { lat: 48.2082, lng: 16.3738, zoom: 10 },
+  '아르헨티나': { lat: -34.6037, lng: -58.3816, zoom: 10 },
+  '페루': { lat: -12.0464, lng: -77.0428, zoom: 10 },
+  '칠레': { lat: -33.4489, lng: -70.6693, zoom: 10 },
+  '아랍에미리트': { lat: 25.2048, lng: 55.2708, zoom: 10 },
+  '이집트': { lat: 30.0444, lng: 31.2357, zoom: 10 },
+  '모로코': { lat: 33.9716, lng: -6.8498, zoom: 10 },
+  '남아공': { lat: -33.9249, lng: 18.4241, zoom: 10 },
+  '마카오': { lat: 22.1987, lng: 113.5439, zoom: 12 },
+  '미얀마': { lat: 16.8661, lng: 96.1951, zoom: 10 },
+  '스리랑카': { lat: 6.9271, lng: 79.8612, zoom: 10 },
+  '핀란드': { lat: 60.1699, lng: 24.9384, zoom: 10 },
+  '덴마크': { lat: 55.6761, lng: 12.5683, zoom: 10 },
+  '폴란드': { lat: 52.2297, lng: 21.0122, zoom: 10 },
+  '헝가리': { lat: 47.4979, lng: 19.0402, zoom: 10 },
+  '벨기에': { lat: 50.8503, lng: 4.3517, zoom: 10 },
+  '아일랜드': { lat: 53.3498, lng: -6.2603, zoom: 10 },
+  '루마니아': { lat: 44.4268, lng: 26.1025, zoom: 10 },
+  '콜롬비아': { lat: 4.711, lng: -74.0721, zoom: 10 },
+  '쿠바': { lat: 23.1136, lng: -82.3666, zoom: 10 },
+  '요르단': { lat: 31.9454, lng: 35.9284, zoom: 10 },
+  '이스라엘': { lat: 31.7683, lng: 35.2137, zoom: 10 },
+  '오만': { lat: 23.588, lng: 58.3829, zoom: 10 },
+  '탄자니아': { lat: -6.7924, lng: 39.2083, zoom: 10 },
+  '케냐': { lat: -1.2921, lng: 36.8219, zoom: 10 },
+}
+
+// 나라 목록 (드롭다운용)
+const COUNTRY_LIST = Object.keys(COUNTRY_CENTERS).sort((a, b) => a.localeCompare(b, 'ko'))
 const TIME_SLOTS = ['일출', '오전', '오후', '일몰', '야간'] as const
 const TRIPOD_OPTS = ['가능', '불가'] as const
 const CROWDEDNESS = ['높음', '보통', '낮음'] as const
@@ -119,6 +192,8 @@ export default function CreatePostPage() {
   const queryLat = searchParams.get('lat')
   const queryLng = searchParams.get('lng')
   const queryName = searchParams.get('name')
+  const queryRegion = searchParams.get('region')  // 'overseas' or null
+  const queryCountry = searchParams.get('country')  // 나라 이름
 
   // 챌린지 관련
   const challengeIdParam = searchParams.get('challengeId')
@@ -147,8 +222,9 @@ export default function CreatePostPage() {
   const availableBoardTypes = isSuperadmin ? BOARD_TYPES_WITH_NOTICE : BOARD_TYPES
   const isSpot = boardType === '출사지'
 
-  // 국내/해외 구분
-  const [isDomestic, setIsDomestic] = useState(true)
+  // 국내/해외 구분 (URL에서 region=overseas면 해외 기본 선택)
+  const [isDomestic, setIsDomestic] = useState(() => queryRegion !== 'overseas')
+  const [selectedCountry, setSelectedCountry] = useState<string>(queryCountry ?? '')
 
   // 장소 선택 (출사지 전용)
   const [selectedSpotId, setSelectedSpotId] = useState(initialSpotId)
@@ -455,13 +531,34 @@ export default function CreatePostPage() {
 
   // GPS 버튼 클릭 핸들러
   const handleGpsClick = async () => {
+    setShowResults(false)
+
+    // 해외 모드: 선택한 나라 중심 좌표로 이동
+    if (!isDomestic) {
+      if (!selectedCountry) {
+        toast.error('먼저 나라를 선택해주세요')
+        return
+      }
+      const center = COUNTRY_CENTERS[selectedCountry]
+      if (!center) {
+        toast.error('해당 나라의 좌표 정보가 없습니다')
+        return
+      }
+      setGpsLat(center.lat)
+      setGpsLng(center.lng)
+      setGpsPlaceName('')
+      setGpsStep('map')
+      setShowGpsModal(true)
+      return
+    }
+
+    // 국내 모드: GPS로 현재 위치 가져오기
     if (!navigator.geolocation) {
       toast.error('이 브라우저에서는 위치 서비스를 사용할 수 없습니다.')
       return
     }
 
     setGpsLoading(true)
-    setShowResults(false)
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -557,10 +654,10 @@ export default function CreatePostPage() {
       if (geoResult.address) placeRow.address = geoResult.address
       if (geoResult.region) placeRow.region = geoResult.region
       if (geoResult.district) placeRow.district = geoResult.district
-      // 해외인 경우 country도 저장
-      if (!isDomestic && geoResult.country) {
-        placeRow.country = geoResult.country
-      }
+    }
+    // 해외인 경우 country 저장 (역지오코딩 결과 우선, 없으면 선택한 나라)
+    if (!isDomestic) {
+      placeRow.country = geoResult?.country || selectedCountry || ''
     }
 
     const { data, error } = await supabase
@@ -1194,7 +1291,7 @@ export default function CreatePostPage() {
 
         {/* 국내/해외 선택 (출사지 전용) */}
         {isSpot && !initialSpotId && !selectedSpotId && !isEditMode && (
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex-wrap">
             <span className="text-sm text-gray-500 mr-1">지역</span>
             {(['국내', '해외'] as const).map((label) => {
               const active = label === '국내' ? isDomestic : !isDomestic
@@ -1210,6 +1307,10 @@ export default function CreatePostPage() {
                     setSpotName('장소')
                     setPlaceQuery('')
                     setShowResults(false)
+                    // 해외로 전환 시 나라 선택 초기화 (URL에서 왔으면 유지)
+                    if (!next && !selectedCountry) {
+                      setSelectedCountry('')
+                    }
                   }}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium ${
                     active
@@ -1221,6 +1322,19 @@ export default function CreatePostPage() {
                 </button>
               )
             })}
+            {/* 해외 선택 시 나라 드롭다운 */}
+            {!isDomestic && (
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                className="ml-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-500"
+              >
+                <option value="">나라 선택</option>
+                {COUNTRY_LIST.map((country) => (
+                  <option key={country} value={country}>{country}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 
