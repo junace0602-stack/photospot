@@ -137,14 +137,7 @@ const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }
   '케냐': { lat: -0.02, lng: 37.9, zoom: 6 },
 }
 
-/* ── 해외 나라 목록 및 국기 이모지 ── */
-const DISPLAY_COUNTRIES = [
-  '일본', '대만', '태국', '베트남', '미국', '중국', '프랑스', '영국',
-  '이탈리아', '스페인', '독일', '호주', '캐나다', '싱가포르', '홍콩',
-  '인도네시아', '필리핀', '말레이시아', '인도', '터키', '이집트',
-  '스위스', '체코', '네덜란드', '뉴질랜드',
-] as const
-
+/* ── 국기 이모지 매핑 (동적 나라 목록용) ── */
 const COUNTRY_FLAGS: Record<string, string> = {
   '일본': '🇯🇵',
   '대만': '🇹🇼',
@@ -171,6 +164,47 @@ const COUNTRY_FLAGS: Record<string, string> = {
   '체코': '🇨🇿',
   '네덜란드': '🇳🇱',
   '뉴질랜드': '🇳🇿',
+  '멕시코': '🇲🇽',
+  '브라질': '🇧🇷',
+  '그리스': '🇬🇷',
+  '노르웨이': '🇳🇴',
+  '스웨덴': '🇸🇪',
+  '아이슬란드': '🇮🇸',
+  '크로아티아': '🇭🇷',
+  '포르투갈': '🇵🇹',
+  '몽골': '🇲🇳',
+  '캄보디아': '🇰🇭',
+  '라오스': '🇱🇦',
+  '네팔': '🇳🇵',
+  '몰디브': '🇲🇻',
+  '괌': '🇬🇺',
+  '사이판': '🇲🇵',
+  '카자흐스탄': '🇰🇿',
+  '우즈베키스탄': '🇺🇿',
+  '오스트리아': '🇦🇹',
+  '아르헨티나': '🇦🇷',
+  '페루': '🇵🇪',
+  '칠레': '🇨🇱',
+  '아랍에미리트': '🇦🇪',
+  '모로코': '🇲🇦',
+  '남아공': '🇿🇦',
+  '마카오': '🇲🇴',
+  '미얀마': '🇲🇲',
+  '스리랑카': '🇱🇰',
+  '핀란드': '🇫🇮',
+  '덴마크': '🇩🇰',
+  '폴란드': '🇵🇱',
+  '헝가리': '🇭🇺',
+  '벨기에': '🇧🇪',
+  '아일랜드': '🇮🇪',
+  '루마니아': '🇷🇴',
+  '콜롬비아': '🇨🇴',
+  '쿠바': '🇨🇺',
+  '요르단': '🇯🇴',
+  '이스라엘': '🇮🇱',
+  '오만': '🇴🇲',
+  '탄자니아': '🇹🇿',
+  '케냐': '🇰🇪',
 }
 
 /* ── 국내 시/도 및 구/군 데이터 ── */
@@ -980,13 +1014,6 @@ export default function MapPage() {
     return items
   }, [places, userPos, placeStats, searchQuery, listSort, region, countryFilter, provinceFilter, districtFilter, tagsFilter])
 
-  // 나라 검색 결과 (표시할 나라 목록에서 검색)
-  const filteredCountries = useMemo(() => {
-    const q = countrySearch.trim()
-    if (!q) return [...DISPLAY_COUNTRIES]
-    return DISPLAY_COUNTRIES.filter((c) => matchesCountry(c, q))
-  }, [countrySearch])
-
   // 나라별 출사지/글 통계
   const countryStats = useMemo(() => {
     const stats = new Map<string, { placeCount: number; postCount: number }>()
@@ -1004,6 +1031,18 @@ export default function MapPage() {
     })
     return stats
   }, [places, placeStats])
+
+  // 나라 검색 결과 (출사지가 있는 나라만 동적으로 표시)
+  const filteredCountries = useMemo(() => {
+    const q = countrySearch.trim()
+    // countryStats에서 출사지가 있는 나라들을 출사지 수 내림차순으로 정렬
+    const countriesWithSpots = Array.from(countryStats.entries())
+      .sort((a, b) => b[1].placeCount - a[1].placeCount)
+      .map(([country]) => country)
+
+    if (!q) return countriesWithSpots
+    return countriesWithSpots.filter((c) => matchesCountry(c, q))
+  }, [countrySearch, countryStats])
 
   // 해외 모드에서 나라 선택 전: 나라 목록 표시
   const showCountryList = region === 'international' && !countryFilter
@@ -1809,9 +1848,21 @@ export default function MapPage() {
           showCountryList ? (
             <div ref={listRef} className="flex-1 overflow-y-auto">
               {filteredCountries.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">
-                  &quot;{countrySearch}&quot; 검색 결과 없음
-                </p>
+                countrySearch.trim() ? (
+                  <p className="text-sm text-gray-400 text-center py-8">
+                    &quot;{countrySearch}&quot; 검색 결과 없음
+                  </p>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                    <span className="text-4xl mb-3">🌍</span>
+                    <p className="text-sm font-medium text-gray-600 mb-1">
+                      아직 등록된 해외 출사지가 없습니다
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      첫 번째로 등록해보세요!
+                    </p>
+                  </div>
+                )
               ) : (
                 filteredCountries.map((country) => {
                   const cs = countryStats.get(country)
@@ -1826,9 +1877,7 @@ export default function MapPage() {
                       <span className="text-2xl">{COUNTRY_FLAGS[country] ?? '🌍'}</span>
                       <span className="flex-1 text-sm font-medium text-gray-900">
                         {country}
-                        {placeCount > 0 && (
-                          <span className="ml-1.5 text-blue-500">({placeCount})</span>
-                        )}
+                        <span className="ml-1.5 text-blue-500">({placeCount})</span>
                       </span>
                       <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                     </button>
