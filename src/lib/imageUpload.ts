@@ -16,7 +16,8 @@ const ALLOWED_EXTENSIONS = new Set([
 const THUMBNAIL_SIZE = 400
 const THUMBNAIL_QUALITY = 0.82
 
-const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.heic,.heif,.webp'
+// HEIC MIME 타입 명시적 추가 (iOS에서 원본 HEIC 파일 받기 위해)
+const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif,.webp'
 export { IMAGE_ACCEPT }
 
 /** 업로드 결과: 원본 URL + 썸네일 URL */
@@ -139,6 +140,13 @@ export async function uploadImage(file: File): Promise<string> {
  * - 썸네일: 400x400px 중앙 크롭, WebP 82% 품질
  */
 export async function uploadImageWithThumbnail(file: File): Promise<UploadResult> {
+  // 디버그: 입력 파일 정보
+  console.log('[imageUpload] Input file:', {
+    name: file.name,
+    type: file.type,
+    size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+  })
+
   // 1. 형식 검증
   if (!isAllowedFormat(file)) {
     throw new Error(
@@ -160,10 +168,21 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
   let originalContentType = file.type || 'image/jpeg'
 
   if (isHeic(file)) {
+    console.log('[imageUpload] Converting HEIC to JPEG...')
     originalBlob = await convertHeic(file)
     originalExt = 'jpg'
     originalContentType = 'image/jpeg'
+    console.log('[imageUpload] After HEIC conversion:', {
+      size: `${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`,
+    })
   }
+
+  // 디버그: 업로드할 원본 크기
+  console.log('[imageUpload] Uploading original:', {
+    size: `${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`,
+    ext: originalExt,
+    contentType: originalContentType,
+  })
 
   // 4. 썸네일 생성 (400x400 중앙 크롭, WebP)
   const thumbBlob = await toWebP(originalBlob, THUMBNAIL_SIZE, THUMBNAIL_QUALITY, true)
