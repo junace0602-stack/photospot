@@ -617,6 +617,8 @@ export default function MapPage() {
   const pendingScrollRef = useRef(savedMapState.scrollTop)
   const pendingMapCenterRef = useRef(savedMapState.mapCenter)
   const pendingMapZoomRef = useRef(savedMapState.mapZoom)
+  // 저장된 지도 위치가 있으면 초기 마운트 시 위치 리셋 건너뛰기
+  const skipMapResetRef = useRef(savedMapState.mapCenter !== null)
 
   // 국내 지역 탐색
   const [provinceFilter, setProvinceFilter] = useState<KoreaProvince | null>(null)
@@ -912,17 +914,30 @@ export default function MapPage() {
 
     // GPS 위치 요청 (저장된 위치가 없을 때만, 앱 시작 시 한 번)
     const requestInitialGPS = () => {
+      // sessionStorage에 저장된 지도 위치가 있으면 GPS 위치로 이동하지 않음 (뒤로가기 복원)
+      const savedMapViewState = loadMapState()
+      const hasRestoredMapPosition = savedMapViewState.mapCenter !== null
+
       // 이미 저장된 위치가 있으면 GPS 요청 안 함
       const savedPos = loadSavedPosition()
       if (savedPos) {
-        // 저장된 위치로 지도 이동 (지도 로딩 후)
-        const checkMap = setInterval(() => {
+        // 저장된 지도 뷰가 없을 때만 GPS 위치로 이동 (뒤로가기 시에는 이동하지 않음)
+        if (!hasRestoredMapPosition) {
+          const checkMap = setInterval(() => {
+            const map = mapInstanceRef.current
+            if (map) {
+              clearInterval(checkMap)
+              map.panTo(savedPos)
+              map.setZoom(11)
+            }
+          }, 100)
+          setTimeout(() => clearInterval(checkMap), 5000)
+        }
+        // 사용자 위치 마커는 항상 표시 (지도 이동 여부와 관계없이)
+        const checkMapForMarker = setInterval(() => {
           const map = mapInstanceRef.current
           if (map) {
-            clearInterval(checkMap)
-            map.panTo(savedPos)
-            map.setZoom(11)
-            // 사용자 위치 마커 표시
+            clearInterval(checkMapForMarker)
             if (!cachedUserMarker) {
               const dot = document.createElement('div')
               dot.style.cssText =
@@ -938,7 +953,7 @@ export default function MapPage() {
             }
           }
         }, 100)
-        setTimeout(() => clearInterval(checkMap), 5000)
+        setTimeout(() => clearInterval(checkMapForMarker), 5000)
         return
       }
 
@@ -953,7 +968,8 @@ export default function MapPage() {
           savePosition(lat, lng) // localStorage에 저장
 
           const map = mapInstanceRef.current
-          if (map) {
+          // 저장된 지도 뷰가 없을 때만 GPS 위치로 이동 (뒤로가기 복원 시에는 이동하지 않음)
+          if (map && !hasRestoredMapPosition) {
             map.panTo({ lat, lng })
             map.setZoom(11)
           }
@@ -997,17 +1013,22 @@ export default function MapPage() {
     const map = mapInstanceRef.current
     if (!map || !mapReady) return
 
-    // 지도 뷰 조정
-    if (region === 'domestic') {
-      map.setCenter(userPos)
-      map.setZoom(11)
-    } else if (countryFilter && COUNTRY_CENTERS[countryFilter]) {
-      const c = COUNTRY_CENTERS[countryFilter]
-      map.setCenter({ lat: c.lat, lng: c.lng })
-      map.setZoom(c.zoom)
+    // 저장된 위치 복원 중이면 지도 이동 건너뛰기 (마커는 표시)
+    if (skipMapResetRef.current) {
+      skipMapResetRef.current = false
     } else {
-      map.setCenter({ lat: 30, lng: 120 })
-      map.setZoom(3)
+      // 지도 뷰 조정 (사용자가 탭/나라 변경 시에만)
+      if (region === 'domestic') {
+        map.setCenter(userPos)
+        map.setZoom(11)
+      } else if (countryFilter && COUNTRY_CENTERS[countryFilter]) {
+        const c = COUNTRY_CENTERS[countryFilter]
+        map.setCenter({ lat: c.lat, lng: c.lng })
+        map.setZoom(c.zoom)
+      } else {
+        map.setCenter({ lat: 30, lng: 120 })
+        map.setZoom(3)
+      }
     }
 
     // 클러스터러에 해당 마커만 추가
