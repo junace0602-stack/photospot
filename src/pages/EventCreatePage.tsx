@@ -41,8 +41,14 @@ export default function EventCreatePage() {
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [winnerCriteria, setWinnerCriteria] = useState('')
+
+  // 종료일 자동 계산 (시작일 + 7일)
+  const endDate = startDate
+    ? new Date(new Date(startDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    : ''
+  const endDateFormatted = endDate
+    ? new Date(endDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+    : ''
 
   // 이미지 (최대 5장)
   const [imageFiles, setImageFiles] = useState<File[]>([])
@@ -112,8 +118,6 @@ export default function EventCreatePage() {
     topic.trim() &&
     description.trim() &&
     startDate &&
-    endDate &&
-    winnerCriteria.trim() &&
     (!hasPrize || (prizeName.trim() && prizeImageFile)) &&
     !submitting
 
@@ -145,7 +149,7 @@ export default function EventCreatePage() {
         description: description.trim(),
         start_date: startDate,
         end_date: endDate,
-        winner_criteria: winnerCriteria.trim(),
+        winner_criteria: '추천 수 1위',
         has_prize: hasPrize,
         prize: hasPrize ? prizeName.trim() : '',
         prize_image_url: prizeImageUrl,
@@ -324,43 +328,29 @@ export default function EventCreatePage() {
         </div>
 
         {/* 기간 */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              시작일 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              종료일 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400"
-            />
-          </div>
-        </div>
-
-        {/* 우승 기준 */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">
-            우승 기준 설명 <span className="text-red-500">*</span>
+            시작일 <span className="text-red-500">*</span>
           </label>
-          <textarea
-            value={winnerCriteria}
-            onChange={(e) => setWinnerCriteria(e.target.value)}
-            placeholder="예: 추천수 1위 게시물이 우승합니다 / 주최자가 가장 마음에 드는 작품을 선정합니다"
-            rows={2}
-            className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none resize-none focus:border-blue-400"
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400"
           />
+          {startDate && (
+            <p className="mt-1.5 text-xs text-gray-500">
+              챌린지 기간: 7일 (종료일: {endDateFormatted})
+            </p>
+          )}
+        </div>
+
+        {/* 우승 기준 (고정) */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">
+            우승 기준
+          </label>
+          <p className="text-xs text-gray-400">추천 수 1위</p>
         </div>
 
         {/* 상품 유무 */}
