@@ -108,7 +108,6 @@ function LoggedInView() {
     likedPostsCount: 0,
     scrapsCount: 0,
   })
-  const [statsLoading, setStatsLoading] = useState(true)
 
   // 통계 로드 (캐싱 적용)
   useEffect(() => {
@@ -127,14 +126,10 @@ function LoggedInView() {
         if (age < CACHE_TTL) {
           // 캐시 유효: 즉시 표시
           setStats(JSON.parse(cached))
-          setStatsLoading(false)
           return
         }
         // 캐시 만료: 일단 캐시 표시 후 백그라운드 갱신
         setStats(JSON.parse(cached))
-        setStatsLoading(false)
-      } else {
-        setStatsLoading(true)
       }
 
       // 병렬로 모든 통계 조회
@@ -226,7 +221,6 @@ function LoggedInView() {
       sessionStorage.setItem(`${CACHE_KEY}-time`, String(Date.now()))
 
       setStats(newStats)
-      setStatsLoading(false)
     }
 
     loadStats()
@@ -448,32 +442,6 @@ function LoggedInView() {
                   </p>
                 </div>
               )}
-            </div>
-          )}
-        </div>
-
-        {/* 통계 */}
-        <div className="mt-6 bg-white/10 rounded-xl p-4">
-          {statsLoading ? (
-            <div className="flex items-center justify-center py-2">
-              <span className="text-sm text-white/60">통계 불러오는 중...</span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-around text-center">
-              <div>
-                <p className="text-2xl font-bold text-white">{stats.postsCount}</p>
-                <p className="text-xs text-white/60 mt-0.5">작성글</p>
-              </div>
-              <div className="w-px h-10 bg-white/20" />
-              <div>
-                <p className="text-2xl font-bold text-white">{stats.commentsCount}</p>
-                <p className="text-xs text-white/60 mt-0.5">댓글</p>
-              </div>
-              <div className="w-px h-10 bg-white/20" />
-              <div>
-                <p className="text-2xl font-bold text-white">{stats.receivedLikes}</p>
-                <p className="text-xs text-white/60 mt-0.5">받은 추천</p>
-              </div>
             </div>
           )}
         </div>
