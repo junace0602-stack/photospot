@@ -422,6 +422,14 @@ export default function PostDetailPage() {
 
   const toggleLike = useCallback(async () => {
     if (!loggedIn || !user || !postId || likeLoading) return
+
+    // 정지 상태 체크
+    const suspension = await checkSuspension(user.id)
+    if (suspension.isSuspended) {
+      toast.error(suspension.message ?? '계정이 정지되었습니다.')
+      return
+    }
+
     setLikeLoading(true)
 
     // 낙관적 UI
@@ -456,6 +464,20 @@ export default function PostDetailPage() {
       notifyPopular(post.user_id, post.title, `/spots/${spotId}/posts/${postId}`, newCount)
     }
   }, [liked, likeCount, likeLoading, loggedIn, postId, spotId, post, user])
+
+  // 신고 모달 열기 (정지 체크)
+  const handleOpenReport = useCallback(async () => {
+    if (!user) {
+      toast.error('로그인이 필요합니다.')
+      return
+    }
+    const suspension = await checkSuspension(user.id)
+    if (suspension.isSuspended) {
+      toast.error(suspension.message ?? '계정이 정지되었습니다.')
+      return
+    }
+    setReportOpen(true)
+  }, [user])
 
   const submitComment = useCallback(async () => {
     if (!commentText.trim() || !user || !postId || commentSending) return
@@ -891,7 +913,7 @@ export default function PostDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setReportOpen(true)}
+                onClick={handleOpenReport}
                 className="flex items-center gap-1 text-sm text-gray-400"
               >
                 <Flag className="w-4 h-4" />
@@ -980,7 +1002,7 @@ export default function PostDetailPage() {
                           {!isMyComment && (
                             <button
                               type="button"
-                              onClick={() => setReportOpen(true)}
+                              onClick={handleOpenReport}
                               className="text-gray-300"
                             >
                               <Flag className="w-3.5 h-3.5" />

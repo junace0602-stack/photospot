@@ -7,8 +7,6 @@ import {
   Trash2,
   Search,
   UserMinus,
-  UserPlus,
-  ShieldOff,
   Trophy,
   RotateCcw,
   EyeOff,
@@ -22,6 +20,12 @@ import {
   Crown,
   Gift,
   ImagePlus,
+  Activity,
+  TrendingUp,
+  Tag,
+  MapPin,
+  Clock,
+  BarChart3,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
@@ -29,7 +33,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { applyPenalty, removePenalty, getPenaltyHistory, penaltyTypeToKorean, PENALTY_OPTIONS, type UserPenalty, type PenaltyType } from '../lib/penalty'
 
-// ── 통계 대시보드 ──
+// ── 통계 탭 ──
 
 interface DashboardStats {
   totalUsers: number
@@ -38,9 +42,104 @@ interface DashboardStats {
   monthNewUsers: number
   totalPosts: number
   todayPosts: number
+  currentActiveUsers: number
 }
 
-function StatsDashboard() {
+interface TagStat {
+  tag: string
+  count: number
+}
+
+interface SpotStat {
+  id: string
+  title: string
+  location: string
+  likes_count: number
+}
+
+interface HourlyData {
+  hour: number
+  count: number
+}
+
+interface DailySignup {
+  date: string
+  count: number
+}
+
+// 간단한 막대 차트 컴포넌트
+function SimpleBarChart({ data, maxValue, label }: { data: { label: string; value: number }[]; maxValue: number; label: string }) {
+  return (
+    <div className="space-y-2">
+      <h4 className="text-xs font-semibold text-gray-600 mb-3">{label}</h4>
+      {data.map((item, idx) => (
+        <div key={idx} className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-500 w-14 truncate shrink-0">{item.label}</span>
+          <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-500"
+              style={{ width: `${maxValue > 0 ? (item.value / maxValue) * 100 : 0}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-gray-600 font-medium w-8 text-right">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// 시간대별 막대 차트 (24시간)
+function HourlyChart({ data, label }: { data: HourlyData[]; label: string }) {
+  const maxValue = Math.max(...data.map(d => d.count), 1)
+
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-gray-600 mb-3">{label}</h4>
+      <div className="flex items-end gap-[2px] h-20">
+        {data.map((item) => (
+          <div key={item.hour} className="flex-1 flex flex-col items-center">
+            <div
+              className="w-full bg-blue-400 rounded-t transition-all duration-500"
+              style={{ height: `${maxValue > 0 ? (item.count / maxValue) * 100 : 0}%`, minHeight: item.count > 0 ? '2px' : '0' }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between mt-1">
+        <span className="text-[9px] text-gray-400">0시</span>
+        <span className="text-[9px] text-gray-400">6시</span>
+        <span className="text-[9px] text-gray-400">12시</span>
+        <span className="text-[9px] text-gray-400">18시</span>
+        <span className="text-[9px] text-gray-400">24시</span>
+      </div>
+    </div>
+  )
+}
+
+// 일별 가입 추이 라인 차트
+function DailySignupChart({ data }: { data: DailySignup[] }) {
+  const maxValue = Math.max(...data.map(d => d.count), 1)
+
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-gray-600 mb-3">최근 7일 가입자 추이</h4>
+      <div className="flex items-end gap-1 h-16">
+        {data.map((item, idx) => (
+          <div key={idx} className="flex-1 flex flex-col items-center">
+            <span className="text-[9px] text-gray-500 mb-1">{item.count}</span>
+            <div
+              className="w-full bg-green-400 rounded-t transition-all duration-500"
+              style={{ height: `${maxValue > 0 ? (item.count / maxValue) * 100 : 0}%`, minHeight: item.count > 0 ? '4px' : '2px' }}
+            />
+            <span className="text-[8px] text-gray-400 mt-1">{item.date.slice(5)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StatsTab() {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     todayActiveUsers: 0,
@@ -48,8 +147,14 @@ function StatsDashboard() {
     monthNewUsers: 0,
     totalPosts: 0,
     todayPosts: 0,
+    currentActiveUsers: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [popularTags, setPopularTags] = useState<TagStat[]>([])
+  const [popularSpots, setPopularSpots] = useState<SpotStat[]>([])
+  const [hourlyPosts, setHourlyPosts] = useState<HourlyData[]>([])
+  const [hourlyActivity, setHourlyActivity] = useState<HourlyData[]>([])
+  const [dailySignups, setDailySignups] = useState<DailySignup[]>([])
 
   useEffect(() => {
     const loadStats = async () => {
@@ -57,7 +162,9 @@ function StatsDashboard() {
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
       const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).toISOString()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      const fifteenMinAgo = new Date(now.getTime() - 15 * 60 * 1000).toISOString()
 
+      // 기본 통계
       const [
         totalUsersRes,
         todayActiveRes,
@@ -67,23 +174,17 @@ function StatsDashboard() {
         spotPostsRes,
         todayCommunityRes,
         todaySpotRes,
+        currentActiveRes,
       ] = await Promise.all([
-        // 총 가입자 수
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        // 오늘 방문자 수
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', todayStart),
-        // 이번 주 방문자 수
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', weekStart),
-        // 이번 달 신규 가입자 수
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', monthStart),
-        // 커뮤니티 총 글 수
         supabase.from('community_posts').select('*', { count: 'exact', head: true }),
-        // 출사지 총 글 수
         supabase.from('posts').select('*', { count: 'exact', head: true }),
-        // 오늘 커뮤니티 글 수
         supabase.from('community_posts').select('*', { count: 'exact', head: true }).gte('created_at', todayStart),
-        // 오늘 출사지 글 수
         supabase.from('posts').select('*', { count: 'exact', head: true }).gte('created_at', todayStart),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', fifteenMinAgo),
       ])
 
       setStats({
@@ -93,7 +194,96 @@ function StatsDashboard() {
         monthNewUsers: monthNewRes.count ?? 0,
         totalPosts: (communityPostsRes.count ?? 0) + (spotPostsRes.count ?? 0),
         todayPosts: (todayCommunityRes.count ?? 0) + (todaySpotRes.count ?? 0),
+        currentActiveUsers: currentActiveRes.count ?? 0,
       })
+
+      // 인기 태그 TOP 10
+      const { data: postsWithTags } = await supabase
+        .from('posts')
+        .select('tags')
+        .not('tags', 'is', null)
+
+      if (postsWithTags) {
+        const tagCounts: Record<string, number> = {}
+        for (const post of postsWithTags) {
+          const tags = post.tags as string[] | null
+          if (tags && Array.isArray(tags)) {
+            for (const tag of tags) {
+              tagCounts[tag] = (tagCounts[tag] ?? 0) + 1
+            }
+          }
+        }
+        const sortedTags = Object.entries(tagCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([tag, count]) => ({ tag, count }))
+        setPopularTags(sortedTags)
+      }
+
+      // 인기 출사지 TOP 10
+      const { data: topSpots } = await supabase
+        .from('posts')
+        .select('id, title, location, likes_count')
+        .order('likes_count', { ascending: false })
+        .limit(10)
+
+      if (topSpots) {
+        setPopularSpots(topSpots)
+      }
+
+      // 시간대별 글 작성 (오늘)
+      const { data: todayPosts } = await supabase
+        .from('posts')
+        .select('created_at')
+        .gte('created_at', todayStart)
+
+      const { data: todayCommunityPosts } = await supabase
+        .from('community_posts')
+        .select('created_at')
+        .gte('created_at', todayStart)
+
+      const hourlyPostsData: HourlyData[] = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }))
+      const allTodayPosts = [...(todayPosts ?? []), ...(todayCommunityPosts ?? [])]
+      for (const post of allTodayPosts) {
+        const hour = new Date(post.created_at).getHours()
+        hourlyPostsData[hour].count++
+      }
+      setHourlyPosts(hourlyPostsData)
+
+      // 시간대별 활동량 (오늘 last_active_at 기준)
+      const { data: activeProfiles } = await supabase
+        .from('profiles')
+        .select('last_active_at')
+        .gte('last_active_at', todayStart)
+
+      const hourlyActivityData: HourlyData[] = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }))
+      if (activeProfiles) {
+        for (const profile of activeProfiles) {
+          if (profile.last_active_at) {
+            const hour = new Date(profile.last_active_at).getHours()
+            hourlyActivityData[hour].count++
+          }
+        }
+      }
+      setHourlyActivity(hourlyActivityData)
+
+      // 일별 가입 추이 (최근 7일)
+      const dailyData: DailySignup[] = []
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+        const dateStr = date.toISOString().slice(0, 10)
+        const nextDate = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+        const { count } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', dateStr)
+          .lt('created_at', nextDate)
+
+        dailyData.push({ date: dateStr, count: count ?? 0 })
+      }
+      setDailySignups(dailyData)
+
       setLoading(false)
     }
 
@@ -107,26 +297,34 @@ function StatsDashboard() {
     { label: '월 신규가입', value: stats.monthNewUsers, unit: '명', icon: UserPlus2, color: 'bg-orange-500' },
     { label: '총 글', value: stats.totalPosts, unit: '개', icon: FileText, color: 'bg-indigo-500' },
     { label: '오늘 글', value: stats.todayPosts, unit: '개', icon: PenLine, color: 'bg-pink-500' },
+    { label: '현재 활동', value: stats.currentActiveUsers, unit: '명', icon: Activity, color: 'bg-teal-500' },
   ]
 
   if (loading) {
     return (
-      <div className="p-4">
+      <div className="p-4 space-y-4">
         <div className="grid grid-cols-3 gap-2">
-          {[...Array(6)].map((_, i) => (
+          {[...Array(7)].map((_, i) => (
             <div key={i} className="bg-white rounded-xl p-3 animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-16 mb-2" />
               <div className="h-6 bg-gray-200 rounded w-12" />
             </div>
           ))}
         </div>
+        <div className="bg-white rounded-xl p-4 animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-24 mb-4" />
+          <div className="h-32 bg-gray-100 rounded" />
+        </div>
       </div>
     )
   }
 
+  const tagMax = Math.max(...popularTags.map(t => t.count), 1)
+  const spotMax = Math.max(...popularSpots.map(s => s.likes_count), 1)
+
   return (
-    <div className="p-4 bg-gray-100">
-      <h2 className="text-sm font-bold text-gray-700 mb-3">통계 대시보드</h2>
+    <div className="p-4 space-y-4">
+      {/* 기본 통계 카드 */}
       <div className="grid grid-cols-3 gap-2">
         {statCards.map(({ label, value, unit, icon: Icon, color }) => (
           <div key={label} className="bg-white rounded-xl p-3 shadow-sm">
@@ -142,6 +340,67 @@ function StatsDashboard() {
             </p>
           </div>
         ))}
+      </div>
+
+      {/* 인기 태그 TOP 10 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <Tag className="w-4 h-4 text-blue-500" />
+          <h3 className="text-sm font-bold text-gray-700">인기 태그 TOP 10</h3>
+        </div>
+        {popularTags.length > 0 ? (
+          <SimpleBarChart
+            data={popularTags.map(t => ({ label: t.tag, value: t.count }))}
+            maxValue={tagMax}
+            label=""
+          />
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-4">태그 데이터가 없습니다.</p>
+        )}
+      </div>
+
+      {/* 인기 출사지 TOP 10 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <MapPin className="w-4 h-4 text-red-500" />
+          <h3 className="text-sm font-bold text-gray-700">인기 출사지 TOP 10</h3>
+        </div>
+        {popularSpots.length > 0 ? (
+          <SimpleBarChart
+            data={popularSpots.map(s => ({ label: s.title, value: s.likes_count }))}
+            maxValue={spotMax}
+            label=""
+          />
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-4">출사지 데이터가 없습니다.</p>
+        )}
+      </div>
+
+      {/* 시간대별 글 작성 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <Clock className="w-4 h-4 text-purple-500" />
+          <h3 className="text-sm font-bold text-gray-700">오늘 시간대별 글 작성</h3>
+        </div>
+        <HourlyChart data={hourlyPosts} label="" />
+      </div>
+
+      {/* 시간대별 활동량 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <BarChart3 className="w-4 h-4 text-green-500" />
+          <h3 className="text-sm font-bold text-gray-700">오늘 시간대별 활동량</h3>
+        </div>
+        <HourlyChart data={hourlyActivity} label="" />
+      </div>
+
+      {/* 일별 가입 추이 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className="w-4 h-4 text-orange-500" />
+          <h3 className="text-sm font-bold text-gray-700">일별 가입 추이</h3>
+        </div>
+        <DailySignupChart data={dailySignups} />
       </div>
     </div>
   )
@@ -198,17 +457,6 @@ interface SuspendedUser {
   suspended_until: string | null
   penalty_count: number
 }
-
-interface SubAdmin {
-  id: number
-  nickname: string
-  addedAt: string
-}
-
-const INITIAL_SUB_ADMINS: SubAdmin[] = [
-  { id: 1, nickname: '야경러버', addedAt: '2026-01-10' },
-  { id: 2, nickname: '감성포토', addedAt: '2026-01-15' },
-]
 
 // ── Tab: 신고 관리 ──
 
@@ -794,89 +1042,6 @@ function BanTab() {
         </div>
       )}
     </>
-  )
-}
-
-// ── Tab: 관리자 권한 관리 ──
-
-function AdminManageTab() {
-  const [subAdmins, setSubAdmins] = useState(INITIAL_SUB_ADMINS)
-  const [input, setInput] = useState('')
-
-  const addAdmin = () => {
-    const nickname = input.trim()
-    if (!nickname) return
-    if (subAdmins.some((a) => a.nickname === nickname)) {
-      toast('이미 부관리자입니다')
-      return
-    }
-    setSubAdmins((p) => [
-      ...p,
-      { id: Date.now(), nickname, addedAt: new Date().toISOString().slice(0, 10) },
-    ])
-    setInput('')
-    toast.success(`${nickname}님을 부관리자로 추가했습니다`)
-  }
-
-  const removeAdmin = (id: number, nickname: string) => {
-    setSubAdmins((p) => p.filter((a) => a.id !== id))
-    toast.success(`${nickname}님의 부관리자 권한을 해제했습니다`)
-  }
-
-  return (
-    <div className="p-4 space-y-4">
-      {/* Add */}
-      <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
-        <h3 className="text-sm font-bold text-gray-700">부관리자 추가</h3>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="닉네임 또는 ID 입력"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="flex-1 px-3 py-2 bg-gray-100 rounded-lg text-sm outline-none"
-          />
-          <button
-            type="button"
-            onClick={addAdmin}
-            disabled={!input.trim()}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 ${
-              input.trim() ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'
-            }`}
-          >
-            <UserPlus className="w-4 h-4" />
-            추가
-          </button>
-        </div>
-      </div>
-
-      {/* List */}
-      <div>
-        <h3 className="text-sm font-bold text-gray-700 mb-2">현재 부관리자 목록</h3>
-        {subAdmins.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 py-6">부관리자가 없습니다.</p>
-        ) : (
-          <div className="space-y-2">
-            {subAdmins.map((admin) => (
-              <div key={admin.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-800">{admin.nickname}</p>
-                  <p className="text-xs text-gray-400">추가일: {admin.addedAt}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeAdmin(admin.id, admin.nickname)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 text-red-500 text-xs font-medium"
-                >
-                  <ShieldOff className="w-3.5 h-3.5" />
-                  해제
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
   )
 }
 
@@ -2064,9 +2229,10 @@ function WinnersTab() {
 
 // ── Main ──
 
-type TabKey = 'reports' | 'hidden' | 'reporters' | 'events' | 'winners' | 'feedback' | 'ban' | 'admins'
+type TabKey = 'stats' | 'reports' | 'hidden' | 'reporters' | 'events' | 'winners' | 'feedback' | 'ban'
 
 const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
+  { key: 'stats', label: '통계', superOnly: true },
   { key: 'reports', label: '신고 관리', superOnly: false },
   { key: 'hidden', label: '숨김 관리', superOnly: false },
   { key: 'reporters', label: '신고자 관리', superOnly: true },
@@ -2074,7 +2240,6 @@ const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
   { key: 'winners', label: '우승자 관리', superOnly: true },
   { key: 'feedback', label: '건의 관리', superOnly: true },
   { key: 'ban', label: '유저 제재', superOnly: true },
-  { key: 'admins', label: '권한 관리', superOnly: true },
 ]
 
 export default function AdminPage() {
@@ -2083,7 +2248,7 @@ export default function AdminPage() {
   const isSuperAdmin = role === 'superadmin'
 
   const tabs = ALL_TABS.filter((t) => !t.superOnly || isSuperAdmin)
-  const [activeTab, setActiveTab] = useState<TabKey>('reports')
+  const [activeTab, setActiveTab] = useState<TabKey>(isSuperAdmin ? 'stats' : 'reports')
   const [unreadFeedback, setUnreadFeedback] = useState(0)
 
   if (!isAdminMode) {
@@ -2114,9 +2279,6 @@ export default function AdminPage() {
         </span>
       </header>
 
-      {/* Stats Dashboard (최고 관리자만) */}
-      {isSuperAdmin && <StatsDashboard />}
-
       {/* Tabs */}
       <div className="shrink-0 flex bg-white border-b border-gray-200 overflow-x-auto">
         {tabs.map((t) => (
@@ -2142,6 +2304,7 @@ export default function AdminPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
+        {activeTab === 'stats' && isSuperAdmin && <StatsTab />}
         {activeTab === 'reports' && <ReportsTab />}
         {activeTab === 'hidden' && <HiddenPostsTab />}
         {activeTab === 'reporters' && isSuperAdmin && <ReporterManageTab />}
@@ -2149,7 +2312,6 @@ export default function AdminPage() {
         {activeTab === 'winners' && isSuperAdmin && <WinnersTab />}
         {activeTab === 'feedback' && isSuperAdmin && <FeedbackTab onUnreadCount={setUnreadFeedback} />}
         {activeTab === 'ban' && isSuperAdmin && <BanTab />}
-        {activeTab === 'admins' && isSuperAdmin && <AdminManageTab />}
       </div>
     </div>
   )
