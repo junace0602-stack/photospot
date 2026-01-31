@@ -147,7 +147,7 @@ export default function EventCreatePage() {
         end_date: endDate,
         winner_criteria: winnerCriteria.trim(),
         has_prize: hasPrize,
-        prize: hasPrize ? prizeName.trim() : null,
+        prize: hasPrize ? prizeName.trim() : '',
         prize_image_url: prizeImageUrl,
         thumbnail_url: thumbnailUrl,
         image_urls: imageUrls,
