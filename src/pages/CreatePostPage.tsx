@@ -1177,11 +1177,11 @@ export default function CreatePostPage() {
             const showGuide = !isEditMode && !hasPhotos && isFirstTextBlock
 
             return block.type === 'photo' ? (
-              <div key={block.id} className="relative mb-3">
+              <div key={block.id} className="relative mb-6">
                 <img
                   src={block.url}
                   alt="첨부 사진"
-                  className={`w-full rounded-lg ${uploadingIds.has(block.id) ? 'opacity-50' : ''}`}
+                  className={`max-w-[75%] max-h-[300px] object-contain rounded-lg ${uploadingIds.has(block.id) ? 'opacity-50' : ''}`}
                 />
                 {uploadingIds.has(block.id) && (
                   <div className="absolute inset-0 flex items-center justify-center">
