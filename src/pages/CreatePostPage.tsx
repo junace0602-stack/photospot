@@ -1170,8 +1170,12 @@ export default function CreatePostPage() {
 
         {/* Content editor */}
         <div className="px-4 py-4">
-          {blocks.map((block) =>
-            block.type === 'photo' ? (
+          {blocks.map((block) => {
+            // 초기 상태: 사진 없음 && 첫 번째 텍스트 블록일 때만 가이드 표시
+            const isFirstTextBlock = block.type === 'text' && blocks.find(b => b.type === 'text')?.id === block.id
+            const showGuide = !isEditMode && !hasPhotos && isFirstTextBlock
+
+            return block.type === 'photo' ? (
               <div key={block.id} className="relative mb-3">
                 <img
                   src={block.url}
@@ -1199,7 +1203,7 @@ export default function CreatePostPage() {
                 key={block.id}
                 value={block.text}
                 onChange={(e) => updateText(block.id, e.target.value)}
-                placeholder={!isEditMode ? `내용을 입력하세요
+                placeholder={showGuide ? `내용을 입력하세요
 
 📋 커뮤니티 가이드
 ✓ 출사지 정보 공유 및 리뷰
@@ -1209,11 +1213,11 @@ export default function CreatePostPage() {
 
 ✗ 광고/홍보, 스팸/도배
 ✗ 정치, 극단적 표현
-✗ 지역/인종 비하, 고인 모독` : '내용을 입력하세요'}
+✗ 지역/인종 비하, 고인 모독` : ''}
                 className="w-full min-h-[300px] text-sm text-gray-800 leading-relaxed outline-none resize-none mb-3 placeholder:text-gray-400"
               />
-            ),
-          )}
+            )
+          })}
 
           {/* YouTube 임베드 미리보기 */}
           {detectedYouTubeVideos.length > 0 && (
