@@ -23,6 +23,101 @@ export interface ReverseGeocodeResult {
   country: string | null
 }
 
+/** 영어 국가명 → 한국어 국가명 매핑 */
+const COUNTRY_NAME_MAP: Record<string, string> = {
+  // 아시아
+  'Japan': '일본',
+  'Taiwan': '대만',
+  'Thailand': '태국',
+  'Vietnam': '베트남',
+  'China': '중국',
+  'Hong Kong': '홍콩',
+  'Macao': '마카오',
+  'Macau': '마카오',
+  'Singapore': '싱가포르',
+  'Malaysia': '말레이시아',
+  'Indonesia': '인도네시아',
+  'Philippines': '필리핀',
+  'India': '인도',
+  'Nepal': '네팔',
+  'Sri Lanka': '스리랑카',
+  'Maldives': '몰디브',
+  'Cambodia': '캄보디아',
+  'Laos': '라오스',
+  'Myanmar': '미얀마',
+  'Mongolia': '몽골',
+  'Kazakhstan': '카자흐스탄',
+  'Uzbekistan': '우즈베키스탄',
+  // 미주
+  'United States': '미국',
+  'USA': '미국',
+  'Canada': '캐나다',
+  'Mexico': '멕시코',
+  'Brazil': '브라질',
+  'Argentina': '아르헨티나',
+  'Peru': '페루',
+  'Chile': '칠레',
+  'Colombia': '콜롬비아',
+  'Cuba': '쿠바',
+  // 유럽
+  'United Kingdom': '영국',
+  'UK': '영국',
+  'France': '프랑스',
+  'Germany': '독일',
+  'Italy': '이탈리아',
+  'Spain': '스페인',
+  'Portugal': '포르투갈',
+  'Netherlands': '네덜란드',
+  'Belgium': '벨기에',
+  'Switzerland': '스위스',
+  'Austria': '오스트리아',
+  'Czech Republic': '체코',
+  'Czechia': '체코',
+  'Poland': '폴란드',
+  'Hungary': '헝가리',
+  'Greece': '그리스',
+  'Turkey': '터키',
+  'Türkiye': '터키',
+  'Croatia': '크로아티아',
+  'Romania': '루마니아',
+  'Ireland': '아일랜드',
+  'Norway': '노르웨이',
+  'Sweden': '스웨덴',
+  'Finland': '핀란드',
+  'Denmark': '덴마크',
+  'Iceland': '아이슬란드',
+  'Russia': '러시아',
+  // 오세아니아
+  'Australia': '호주',
+  'New Zealand': '뉴질랜드',
+  'Guam': '괌',
+  'Northern Mariana Islands': '사이판',
+  // 중동/아프리카
+  'United Arab Emirates': '아랍에미리트',
+  'UAE': '아랍에미리트',
+  'Israel': '이스라엘',
+  'Jordan': '요르단',
+  'Egypt': '이집트',
+  'Morocco': '모로코',
+  'South Africa': '남아공',
+  'Kenya': '케냐',
+  'Tanzania': '탄자니아',
+  'Oman': '오만',
+  // 한국
+  'South Korea': '한국',
+  'Korea': '한국',
+  'Republic of Korea': '한국',
+}
+
+/** 국가명을 한국어로 정규화 */
+export function normalizeCountryName(countryName: string | null): string | null {
+  if (!countryName) return null
+  // 이미 한국어면 그대로 반환
+  if (/[가-힣]/.test(countryName)) return countryName
+  // 영어 → 한국어 매핑
+  return COUNTRY_NAME_MAP[countryName] ?? countryName
+}
+
 /** 시/도 이름 정규화 */
 function normalizeRegion(adminArea1: string): string | null {
   const regionMap: Record<string, string> = {
@@ -102,7 +197,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       }
     }
 
-    return { address, region, district, country }
+    return { address, region, district, country: normalizeCountryName(country) }
   } catch (error) {
     console.error('Reverse geocoding error:', error)
     return null
@@ -165,13 +260,14 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetail | nu
     }
 
     const countryComponent = place.addressComponents?.find((c) => c.types.includes('country'))
+    const rawCountry = countryComponent?.longText ?? null
 
     return {
       name: place.displayName ?? '',
       address: place.formattedAddress ?? '',
       lat,
       lng,
-      country: countryComponent?.longText ?? null,
+      country: normalizeCountryName(rawCountry),
     }
   } catch {
     return null
