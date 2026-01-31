@@ -618,8 +618,9 @@ export default function CreatePostPage() {
         id,
         url: URL.createObjectURL(file),
       })
-      newBlocks.push({ type: 'text', id: newId(), text: '' })
     })
+    // 사진들 뒤에 텍스트 블록 하나만 추가
+    newBlocks.push({ type: 'text', id: newId(), text: '' })
 
     setBlocks((prev) => {
       const last = prev[prev.length - 1]
