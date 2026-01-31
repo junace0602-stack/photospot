@@ -157,6 +157,26 @@ function PhotoViewer({
     resetZoom()
   }, [index])
 
+  // 뷰어 열릴 때 스크롤 잠금 + 새로고침 방지
+  useEffect(() => {
+    const originalStyle = document.body.style.cssText
+    document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
+    document.body.style.overscrollBehavior = 'none'
+
+    // 새로고침 방지 (pull-to-refresh)
+    const preventRefresh = (e: TouchEvent) => {
+      if (e.touches.length > 1) return // 핀치 줌은 허용
+      e.preventDefault()
+    }
+    document.addEventListener('touchmove', preventRefresh, { passive: false })
+
+    return () => {
+      document.body.style.cssText = originalStyle
+      document.removeEventListener('touchmove', preventRefresh)
+    }
+  }, [])
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') prev()
@@ -264,7 +284,10 @@ function PhotoViewer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-black flex flex-col"
+      style={{ overscrollBehavior: 'none', touchAction: 'none' }}
+    >
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-white text-sm font-medium">
           {index + 1} / {photos.length}
@@ -288,6 +311,7 @@ function PhotoViewer({
       </div>
       <div
         className="flex-1 flex items-center justify-center overflow-hidden relative"
+        style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
         onClick={handleBackgroundClick}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -302,10 +326,12 @@ function PhotoViewer({
         <img
           src={photos[index]}
           alt={`사진 ${index + 1}`}
-          className={`max-w-full max-h-full object-contain select-none transition-opacity ${loadingImages.has(index) ? 'opacity-0' : 'opacity-100'}`}
+          className={`max-w-full max-h-full object-contain select-none ${loadingImages.has(index) ? 'opacity-0' : 'opacity-100'}`}
           style={{
-            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+            transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
             transition: isPinchingRef.current || isDraggingRef.current ? 'none' : 'transform 0.2s ease-out',
+            willChange: 'transform, opacity',
+            contain: 'layout',
           }}
           draggable={false}
           onLoad={() => handleImageLoad(index)}
