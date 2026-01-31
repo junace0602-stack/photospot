@@ -275,18 +275,25 @@ export default function ListPage() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  /* ── 장비 검색 상태 ── */
+  /* ── 장비 검색 상태 (sessionStorage로 유지) ── */
   const [cameraQuery, setCameraQuery] = useState('')
   const [lensQuery, setLensQuery] = useState('')
   const [cameraSuggestions, setCameraSuggestions] = useState<string[]>([])
   const [lensSuggestions, setLensSuggestions] = useState<string[]>([])
   const [showCameraSuggestions, setShowCameraSuggestions] = useState(false)
   const [showLensSuggestions, setShowLensSuggestions] = useState(false)
-  const [selectedCamera, setSelectedCamera] = useState<string | null>(null)
-  const [selectedLens, setSelectedLens] = useState<string | null>(null)
+  const [selectedCamera, setSelectedCamera] = useState<string | null>(() => {
+    return sessionStorage.getItem('equipment-camera') || null
+  })
+  const [selectedLens, setSelectedLens] = useState<string | null>(() => {
+    return sessionStorage.getItem('equipment-lens') || null
+  })
   const [equipmentResults, setEquipmentResults] = useState<ListItem[]>([])
   const [equipmentLoading, setEquipmentLoading] = useState(false)
-  const [equipmentSubFilter, setEquipmentSubFilter] = useState<'전체' | '작례' | '게시글'>('전체')
+  const [equipmentSubFilter, setEquipmentSubFilter] = useState<'전체' | '작례' | '게시글'>(() => {
+    const saved = sessionStorage.getItem('equipment-filter')
+    return (saved === '작례' || saved === '게시글') ? saved : '전체'
+  })
 
   /* ── 무한 스크롤 상태 ── */
   const [items, setItems] = useState<ListItem[]>([])
@@ -306,6 +313,27 @@ export default function ListPage() {
     params.set('tab', section)
     window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}`)
   }, [section])
+
+  /* 장비 검색 상태 sessionStorage에 저장 */
+  useEffect(() => {
+    if (selectedCamera) {
+      sessionStorage.setItem('equipment-camera', selectedCamera)
+    } else {
+      sessionStorage.removeItem('equipment-camera')
+    }
+  }, [selectedCamera])
+
+  useEffect(() => {
+    if (selectedLens) {
+      sessionStorage.setItem('equipment-lens', selectedLens)
+    } else {
+      sessionStorage.removeItem('equipment-lens')
+    }
+  }, [selectedLens])
+
+  useEffect(() => {
+    sessionStorage.setItem('equipment-filter', equipmentSubFilter)
+  }, [equipmentSubFilter])
 
   /* 읽지 않은 알림 수 */
   useEffect(() => {
