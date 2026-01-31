@@ -1177,7 +1177,7 @@ export default function CreatePostPage() {
             const showGuide = !isEditMode && !hasPhotos && isFirstTextBlock
 
             return block.type === 'photo' ? (
-              <div key={block.id} className="relative mb-[3px]">
+              <div key={block.id} className="relative mb-3">
                 <img
                   src={block.url}
                   alt="첨부 사진"
