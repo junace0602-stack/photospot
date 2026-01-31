@@ -106,16 +106,7 @@ export default function CreatePostPage() {
   const { spotId: paramSpotId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, profile, loggedIn, loading } = useAuth()
-
-  // 디버그: Auth 상태 확인
-  console.log('[CreatePost] Auth 상태:', {
-    loggedIn,
-    loading,
-    hasUser: !!user,
-    userId: user?.id,
-    hasProfile: !!profile
-  })
+  const { user, profile } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [submitting, setSubmitting] = useState(false)
   const [isAnonymous, setIsAnonymous] = useState(false)
@@ -454,10 +445,7 @@ export default function CreatePostPage() {
       .filter((b): b is TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('\n')
-    const videos = extractYouTubeUrls(allText).filter((v) => !excludedYouTubeIds.has(v.videoId))
-    console.log('[YouTube Debug] allText:', allText)
-    console.log('[YouTube Debug] detected videos:', videos)
-    return videos
+    return extractYouTubeUrls(allText).filter((v) => !excludedYouTubeIds.has(v.videoId))
   }, [blocks, excludedYouTubeIds])
 
   const handleRemoveYouTube = (videoId: string) => {
@@ -613,20 +601,6 @@ export default function CreatePostPage() {
     ? !!spotId && hasTitle && !isUploading && !submitting
     : hasTitle && !isUploading && !submitting
 
-  // 디버그: 폼 상태 로깅
-  console.log('[CreatePost] 폼 상태:', {
-    isSpot,
-    spotId,
-    hasTitle,
-    title: title.trim(),
-    isUploading,
-    submitting,
-    canSubmit,
-    uploadingIds: [...uploadingIds],
-    hasPhotos,
-    tagsCount: tags.size,
-  })
-
   const handleAddPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
@@ -729,11 +703,7 @@ export default function CreatePostPage() {
   }
 
   const handleSubmit = async () => {
-    console.log('[CreatePost] 등록 버튼 클릭!', { canSubmit, user: !!user, submitting })
-    if (!canSubmit || !user || submitting) {
-      console.log('[CreatePost] 제출 차단됨:', { canSubmit, hasUser: !!user, submitting })
-      return
-    }
+    if (!canSubmit || !user || submitting) return
 
     // 사진 필수 체크 (출사지/사진 탭)
     if (requiresPhoto && !hasPhotos) {

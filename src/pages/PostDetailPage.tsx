@@ -42,16 +42,23 @@ import {
   Aperture,
 } from 'lucide-react'
 
-// exif_data 정규화: 단일 객체(기존) → 배열로 변환
+// exif_data 정규화: 다양한 형식 처리 (배열 또는 단일 객체)
 function normalizeExifData(
   exifData: ExifData | (ExifData | null)[] | null | undefined,
   photoCount: number
 ): (ExifData | null)[] {
   if (!exifData) return []
+
   // 배열인 경우 그대로 반환
   if (Array.isArray(exifData)) return exifData
-  // 단일 객체인 경우 (기존 형식): 모든 사진에 동일한 EXIF 적용
-  return Array(photoCount).fill(exifData)
+
+  // 단일 객체인 경우 (기존 형식): 유효한 EXIF면 모든 사진에 적용
+  if (typeof exifData === 'object' && exifData !== null) {
+    const hasData = Object.values(exifData).some((v) => v !== undefined && v !== null)
+    if (hasData) return Array(photoCount).fill(exifData)
+  }
+
+  return []
 }
 
 function PhotoViewer({
@@ -1110,7 +1117,7 @@ export default function PostDetailPage() {
           photos={photos}
           startIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
-          exifDataList={normalizeExifData((post as Post & { exif_data?: ExifData | (ExifData | null)[] | null })?.exif_data, photos.length)}
+          exifDataList={normalizeExifData(post.exif_data, photos.length)}
         />
       )}
 

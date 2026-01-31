@@ -49,6 +49,7 @@ export interface Post {
   is_anonymous: boolean
   is_domestic: boolean
   created_at: string
+  exif_data?: import('./exif').ExifData | (import('./exif').ExifData | null)[] | null
   // joined
   places?: Pick<Place, 'name' | 'lat' | 'lng'>
 }

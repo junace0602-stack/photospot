@@ -67,16 +67,23 @@ interface CommunityComment {
 
 /* ── 포토 뷰어 ───────────────────────────────────── */
 
-// exif_data 정규화: 단일 객체(기존) → 배열로 변환
+// exif_data 정규화: 다양한 형식 처리 (배열 또는 단일 객체)
 function normalizeExifData(
   exifData: ExifData | (ExifData | null)[] | null | undefined,
   photoCount: number
 ): (ExifData | null)[] {
   if (!exifData) return []
+
   // 배열인 경우 그대로 반환
   if (Array.isArray(exifData)) return exifData
-  // 단일 객체인 경우 (기존 형식): 모든 사진에 동일한 EXIF 적용
-  return Array(photoCount).fill(exifData)
+
+  // 단일 객체인 경우 (기존 형식): 유효한 EXIF면 모든 사진에 적용
+  if (typeof exifData === 'object' && exifData !== null) {
+    const hasData = Object.values(exifData).some((v) => v !== undefined && v !== null)
+    if (hasData) return Array(photoCount).fill(exifData)
+  }
+
+  return []
 }
 
 function PhotoViewer({
@@ -707,10 +714,6 @@ export default function CommunityPostDetailPage() {
 
   const photos = post.image_urls ?? []
 
-  // YouTube 디버깅
-  console.log('[YouTube] 컴포넌트 렌더링됨')
-  console.log('[YouTube] post.content:', post.content)
-
   // YouTube URL 추출
   const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/g
   const youtubeMatches: string[] = []
@@ -720,7 +723,6 @@ export default function CommunityPostDetailPage() {
       youtubeMatches.push(ytMatch[1])
     }
   }
-  console.log('[YouTube] matches:', youtubeMatches)
 
   return (
     <>
