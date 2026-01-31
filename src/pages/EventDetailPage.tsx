@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trophy, Crown, Gift, ThumbsUp, X, Check, Flag, MoreVertical } from 'lucide-react'
+import { ArrowLeft, Trophy, Crown, Gift, ThumbsUp, X, Check, Flag, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -16,6 +16,7 @@ interface Event {
   topic: string
   description: string
   thumbnail_url: string | null
+  image_urls: string[] | null
   has_prize: boolean
   prize: string | null
   prize_image_url: string | null
@@ -71,6 +72,92 @@ function getEventStatus(event: Event): { label: string; color: string } {
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('ko-KR')
+}
+
+/* ── 이미지 캐러셀 ─────────────────────────────────── */
+
+function ImageCarousel({ images }: { images: string[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const touchStartX = useRef(0)
+
+  if (images.length === 0) return null
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current
+    if (deltaX > 50 && currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1)
+    } else if (deltaX < -50 && currentIndex < images.length - 1) {
+      setCurrentIndex(currentIndex + 1)
+    }
+  }
+
+  return (
+    <div className="relative">
+      <div
+        className="overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div
+          className="flex transition-transform duration-300 ease-out"
+          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        >
+          {images.map((url, idx) => (
+            <img
+              key={idx}
+              src={url}
+              alt={`이미지 ${idx + 1}`}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-48 object-cover shrink-0"
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* 좌우 버튼 (PC) */}
+      {images.length > 1 && (
+        <>
+          {currentIndex > 0 && (
+            <button
+              type="button"
+              onClick={() => setCurrentIndex(currentIndex - 1)}
+              className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full items-center justify-center"
+            >
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+          )}
+          {currentIndex < images.length - 1 && (
+            <button
+              type="button"
+              onClick={() => setCurrentIndex(currentIndex + 1)}
+              className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full items-center justify-center"
+            >
+              <ChevronRight className="w-5 h-5 text-white" />
+            </button>
+          )}
+        </>
+      )}
+
+      {/* 인디케이터 */}
+      {images.length > 1 && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {images.map((_, idx) => (
+            <span
+              key={idx}
+              className={`w-1.5 h-1.5 rounded-full ${
+                idx === currentIndex ? 'bg-white' : 'bg-white/50'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /* ── 신고 모달 ─────────────────────────────────────── */
@@ -616,9 +703,12 @@ export default function EventDetailPage() {
 
         {/* 챌린지 정보 카드 */}
         <div className="bg-white mx-4 mt-4 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          {event.thumbnail_url && (
+          {/* 이미지 캐러셀 (image_urls가 있으면 사용, 없으면 thumbnail_url 사용) */}
+          {(event.image_urls && event.image_urls.length > 0) ? (
+            <ImageCarousel images={event.image_urls} />
+          ) : event.thumbnail_url ? (
             <img src={event.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-full h-48 object-cover" />
-          )}
+          ) : null}
           <div className="p-4 space-y-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.color}`}>

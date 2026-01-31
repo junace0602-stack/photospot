@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ImagePlus, X, Loader2, Gift } from 'lucide-react'
+import { ArrowLeft, X, Loader2, Gift, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
 import { checkAndGrantSecondPlacePermission } from '../lib/challengeRelay'
+
+const MAX_IMAGES = 5
 
 export default function EventCreatePage() {
   const navigate = useNavigate()
@@ -41,8 +43,10 @@ export default function EventCreatePage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [winnerCriteria, setWinnerCriteria] = useState('')
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
-  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null)
+
+  // 이미지 (최대 5장)
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
 
   // 상품 관련
   const [hasPrize, setHasPrize] = useState(true)
@@ -66,17 +70,28 @@ export default function EventCreatePage() {
     })
   }, [])
 
-  const handleThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setThumbnailFile(file)
-    setThumbnailPreview(URL.createObjectURL(file))
+  const handleAddImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
+
+    const remaining = MAX_IMAGES - imageFiles.length
+    const toAdd = files.slice(0, remaining)
+
+    if (toAdd.length < files.length) {
+      toast(`최대 ${MAX_IMAGES}장까지만 업로드 가능합니다.`)
+    }
+
+    setImageFiles((prev) => [...prev, ...toAdd])
+    setImagePreviews((prev) => [...prev, ...toAdd.map((f) => URL.createObjectURL(f))])
+
+    // input 초기화 (같은 파일 다시 선택 가능하도록)
+    e.target.value = ''
   }
 
-  const removeThumbnail = () => {
-    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview)
-    setThumbnailFile(null)
-    setThumbnailPreview(null)
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index])
+    setImageFiles((prev) => prev.filter((_, i) => i !== index))
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handlePrizeImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,10 +122,15 @@ export default function EventCreatePage() {
     setSubmitting(true)
 
     try {
-      let thumbnailUrl: string | null = null
-      if (thumbnailFile) {
-        thumbnailUrl = await uploadImage(thumbnailFile)
+      // 이미지 업로드 (병렬)
+      const imageUrls: string[] = []
+      if (imageFiles.length > 0) {
+        const uploadResults = await Promise.all(imageFiles.map((f) => uploadImage(f)))
+        imageUrls.push(...uploadResults)
       }
+
+      // 첫 번째 이미지를 썸네일로 사용
+      const thumbnailUrl = imageUrls[0] ?? null
 
       let prizeImageUrl: string | null = null
       if (hasPrize && prizeImageFile) {
@@ -130,6 +150,7 @@ export default function EventCreatePage() {
         prize: hasPrize ? prizeName.trim() : null,
         prize_image_url: prizeImageUrl,
         thumbnail_url: thumbnailUrl,
+        image_urls: imageUrls,
         is_official: isAdminMode,
         status: 'approved', // 승인 과정 없이 바로 게시
       })
@@ -259,38 +280,47 @@ export default function EventCreatePage() {
           />
         </div>
 
-        {/* 썸네일 */}
+        {/* 이미지 (최대 5장) */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">
-            썸네일 이미지
+            이미지 <span className="text-gray-400 font-normal">(최대 {MAX_IMAGES}장, 첫 번째가 대표 이미지)</span>
           </label>
-          {thumbnailPreview ? (
-            <div className="relative inline-block">
-              <img
-                src={thumbnailPreview}
-                alt=""
-                className="w-32 h-32 object-cover rounded-xl"
-              />
-              <button
-                type="button"
-                onClick={removeThumbnail}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ) : (
-            <label className="inline-flex flex-col items-center justify-center w-32 h-32 bg-white border border-gray-200 rounded-xl cursor-pointer text-gray-400">
-              <ImagePlus className="w-6 h-6" />
-              <span className="text-xs mt-1">이미지 추가</span>
-              <input
-                type="file"
-                accept={IMAGE_ACCEPT}
-                onChange={handleThumbnail}
-                className="hidden"
-              />
-            </label>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {imagePreviews.map((preview, index) => (
+              <div key={index} className="relative">
+                <img
+                  src={preview}
+                  alt=""
+                  className="w-24 h-24 object-cover rounded-xl"
+                />
+                {index === 0 && (
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-medium rounded">
+                    대표
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeImage(index)}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {imageFiles.length < MAX_IMAGES && (
+              <label className="inline-flex flex-col items-center justify-center w-24 h-24 bg-white border border-gray-200 rounded-xl cursor-pointer text-gray-400 hover:border-blue-400 transition-colors">
+                <Plus className="w-6 h-6" />
+                <span className="text-[10px] mt-1">{imageFiles.length}/{MAX_IMAGES}</span>
+                <input
+                  type="file"
+                  accept={IMAGE_ACCEPT}
+                  multiple
+                  onChange={handleAddImages}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
         </div>
 
         {/* 기간 */}
