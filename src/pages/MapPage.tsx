@@ -75,6 +75,9 @@ interface MapPageState {
   region: 'domestic' | 'international'
   countryFilter: string | null
   scrollTop: number
+  mapCenter: { lat: number; lng: number } | null
+  mapZoom: number | null
+  snappedTop: number  // 87 = peek, 50 = half, 0 = full
 }
 
 // 지도 페이지 상태 저장
@@ -98,12 +101,15 @@ function loadMapState(): MapPageState {
         region: state.region ?? 'domestic',
         countryFilter: state.countryFilter ?? null,
         scrollTop: state.scrollTop ?? 0,
+        mapCenter: state.mapCenter ?? null,
+        mapZoom: state.mapZoom ?? null,
+        snappedTop: state.snappedTop ?? 87,
       }
     }
   } catch {
     // 파싱 실패 시 무시
   }
-  return { region: 'domestic', countryFilter: null, scrollTop: 0 }
+  return { region: 'domestic', countryFilter: null, scrollTop: 0, mapCenter: null, mapZoom: null, snappedTop: 87 }
 }
 
 const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }> = {
@@ -583,9 +589,12 @@ export default function MapPage() {
     new Map(),
   )
 
+  // sessionStorage에서 저장된 상태 복원 (먼저 로드)
+  const savedMapState = useMemo(() => loadMapState(), [])
+
   // 하단 시트 — snappedTop: 80 | 50 | 0 (개념적 %, React state)
   // currentTopRef: 실제 px 위치 (드래그 중 ref로만 관리)
-  const [snappedTop, setSnappedTop] = useState(87)
+  const [snappedTop, setSnappedTop] = useState(savedMapState.snappedTop)
   const dragRef = useRef({ startY: 0, startTopPx: 0, dragging: false })
   const currentTopRef = useRef(0) // px — useLayoutEffect에서 초기화
   const skipTransitionRef = useRef(false)
@@ -602,11 +611,12 @@ export default function MapPage() {
   const [mapReady, setMapReady] = useState(false)
 
   // 국내/해외 - sessionStorage에서 복원
-  const savedMapState = useMemo(() => loadMapState(), [])
   const [region, setRegion] = useState<'domestic' | 'international'>(savedMapState.region)
   const [countryFilter, setCountryFilter] = useState<string | null>(savedMapState.countryFilter)
   const [countrySearch, setCountrySearch] = useState('')
   const pendingScrollRef = useRef(savedMapState.scrollTop)
+  const pendingMapCenterRef = useRef(savedMapState.mapCenter)
+  const pendingMapZoomRef = useRef(savedMapState.mapZoom)
 
   // 국내 지역 탐색
   const [provinceFilter, setProvinceFilter] = useState<KoreaProvince | null>(null)
@@ -712,8 +722,8 @@ export default function MapPage() {
 
   /* ── 지도 탭 상태 저장 (뒤로가기 복원용) ── */
   useEffect(() => {
-    saveMapState({ region, countryFilter })
-  }, [region, countryFilter])
+    saveMapState({ region, countryFilter, snappedTop })
+  }, [region, countryFilter, snappedTop])
 
   // 스크롤 위치 복원 (목록 렌더링 후)
   useEffect(() => {
@@ -772,12 +782,26 @@ export default function MapPage() {
         markersRef.current = cachedMarkers || new Map()
         clustererRef.current = cachedClusterer
         userLocationMarkerRef.current = cachedUserMarker
+
+        // 저장된 지도 위치가 있으면 복원
+        if (pendingMapCenterRef.current) {
+          map.setCenter(pendingMapCenterRef.current)
+          pendingMapCenterRef.current = null
+        }
+        if (pendingMapZoomRef.current) {
+          map.setZoom(pendingMapZoomRef.current)
+          pendingMapZoomRef.current = null
+        }
+
         setMapReady(true)
       } else {
-        // 서울 좌표로 먼저 지도 표시 (GPS 기다리지 않음)
+        // 저장된 지도 위치가 있으면 사용, 없으면 서울
+        const initialCenter = pendingMapCenterRef.current ?? SEOUL
+        const initialZoom = pendingMapZoomRef.current ?? 11
+
         map = new google.maps.Map(mapRef.current, {
-          center: SEOUL,
-          zoom: 11,
+          center: initialCenter,
+          zoom: initialZoom,
           mapId: 'DEMO_MAP_ID',
           gestureHandling: 'greedy',
           zoomControl: false,
@@ -789,12 +813,28 @@ export default function MapPage() {
         mapInstanceRef.current = map
         cachedMapInstance = map
 
+        // 지도 위치가 복원되었으면 ref 초기화
+        pendingMapCenterRef.current = null
+        pendingMapZoomRef.current = null
+
         const minimizeSheet = () => {
           skipTransitionRef.current = true
           setSnappedTop(87)
           setSelectedPlace(null)
         }
         map.addListener('dragstart', minimizeSheet)
+
+        // 지도 이동/줌 완료 시 위치 저장
+        map.addListener('idle', () => {
+          const center = map.getCenter()
+          const zoom = map.getZoom()
+          if (center && zoom !== undefined) {
+            saveMapState({
+              mapCenter: { lat: center.lat(), lng: center.lng() },
+              mapZoom: zoom,
+            })
+          }
+        })
 
         setMapReady(true)
       }
