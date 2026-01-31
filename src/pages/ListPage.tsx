@@ -119,10 +119,17 @@ function getEventStatus(event: Event): { label: string; color: string } {
 /* ── 이미지 화질 최적화 URL 생성 ───────────────────────────────────── */
 
 /**
- * Supabase Storage 이미지 URL에 quality 파라미터 추가
- * - 그리드용 저화질 이미지 로드 (quality: 50)
+ * Supabase Storage 이미지 URL에 리사이즈 + 품질 파라미터 추가
+ * - width: 리사이즈 너비 (px)
+ * - quality: 압축 품질 (1-100)
+ * - 그리드용: width=400, quality=75 (레티나 대응, 적절한 화질)
+ * - 리스트용: width=600, quality=80 (큰 썸네일)
  */
-function getLowQualityImageUrl(url: string, quality: number = 50): string {
+function getOptimizedImageUrl(
+  url: string,
+  width: number = 400,
+  quality: number = 75
+): string {
   if (!url) return url
 
   // Supabase Storage URL인지 확인
@@ -130,14 +137,14 @@ function getLowQualityImageUrl(url: string, quality: number = 50): string {
     return url
   }
 
-  // object → render/image 로 변경하고 quality 파라미터 추가
+  // object → render/image 로 변경하고 리사이즈 + 품질 파라미터 추가
   const transformedUrl = url.replace(
     '/storage/v1/object/public/',
     '/storage/v1/render/image/public/'
   )
 
   const separator = transformedUrl.includes('?') ? '&' : '?'
-  return `${transformedUrl}${separator}quality=${quality}`
+  return `${transformedUrl}${separator}width=${width}&quality=${quality}&resize=cover`
 }
 
 /* ── Lazy Image ───────────────────────────────────── */
@@ -1174,7 +1181,7 @@ export default function ListPage() {
                     className="relative aspect-square overflow-hidden bg-gray-100"
                   >
                     <LazyImage
-                      src={getLowQualityImageUrl(item.thumbnail_url!, 50)}
+                      src={getOptimizedImageUrl(item.thumbnail_url!, 400, 75)}
                       alt={item.title}
                       className="w-full h-full object-cover"
                     />
@@ -1196,7 +1203,7 @@ export default function ListPage() {
                     {/* 큰 썸네일 이미지 */}
                     <div className="relative w-full aspect-[4/3] bg-gray-100">
                       <LazyImage
-                        src={getLowQualityImageUrl(item.thumbnail_url!, 70)}
+                        src={getOptimizedImageUrl(item.thumbnail_url!, 800, 80)}
                         alt={item.title}
                         className="w-full h-full object-cover"
                       />
