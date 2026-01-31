@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import {
   FileText,
   MessageCircle,
-  ThumbsUp,
   Star,
   ShieldBan,
   LogOut,
@@ -423,18 +422,6 @@ function LoggedInView() {
               label="내가 쓴 글"
               count={stats.postsCount}
               onClick={() => navigate('/mypage/posts')}
-            />
-            <MenuItem
-              icon={MessageCircle}
-              label="내가 쓴 댓글"
-              count={stats.commentsCount}
-              onClick={() => navigate('/mypage/comments')}
-            />
-            <MenuItem
-              icon={ThumbsUp}
-              label="추천한 글"
-              count={stats.likedPostsCount}
-              onClick={() => navigate('/mypage/likes')}
             />
             <MenuItem
               icon={Bookmark}
