@@ -135,7 +135,6 @@ const COUNTRY_CENTERS: Record<string, { lat: number; lng: number; zoom: number }
   '탄자니아': { lat: -6.4, lng: 34.9, zoom: 5 },
   '케냐': { lat: -0.02, lng: 37.9, zoom: 6 },
 }
-const POPULAR_COUNTRIES = ['일본', '대만', '태국', '베트남', '미국']
 
 /* ── 국내 시/도 및 구/군 데이터 ── */
 const KOREA_PROVINCES = [
@@ -1801,22 +1800,6 @@ export default function MapPage() {
             </div>
           ) : (
             <>
-              {/* 해외 모드: 인기 국가 버튼 */}
-              {region === 'international' && !countryFilter && (
-                <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
-                  {POPULAR_COUNTRIES.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => handleCountryClick(c)}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 whitespace-nowrap"
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {/* 정렬 · 필터 */}
               <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
                 {(region === 'international' && countryFilter) || (region === 'domestic' && provinceFilter) ? (
