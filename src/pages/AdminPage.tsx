@@ -26,6 +26,8 @@ import {
   MapPin,
   Clock,
   BarChart3,
+  Bell,
+  Send,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImage, IMAGE_ACCEPT } from '../lib/imageUpload'
@@ -2302,9 +2304,260 @@ function WinnersTab() {
   )
 }
 
+// ── 알림 보내기 탭 (superadmin 전용) ──
+
+function NotifyTab() {
+  const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ id: string; nickname: string }[]>([])
+  const [selectedUser, setSelectedUser] = useState<{ id: string; nickname: string } | null>(null)
+  const [title, setTitle] = useState('')
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const [recentNotifications, setRecentNotifications] = useState<{
+    id: string
+    user_nickname: string
+    message: string
+    created_at: string
+  }[]>([])
+  const [loadingRecent, setLoadingRecent] = useState(true)
+
+  // 최근 보낸 알림 목록 로드
+  const loadRecentNotifications = async () => {
+    setLoadingRecent(true)
+    const { data: notifications } = await supabase
+      .from('notifications')
+      .select('id, user_id, message, created_at')
+      .eq('type', 'admin')
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (notifications && notifications.length > 0) {
+      const userIds = [...new Set(notifications.map(n => n.user_id))]
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, nickname')
+        .in('id', userIds)
+
+      const nicknameMap = new Map<string, string>()
+      if (profiles) {
+        for (const p of profiles) {
+          nicknameMap.set(p.id, p.nickname)
+        }
+      }
+
+      setRecentNotifications(
+        notifications.map(n => ({
+          id: n.id,
+          user_nickname: nicknameMap.get(n.user_id) ?? '알 수 없음',
+          message: n.message,
+          created_at: n.created_at,
+        }))
+      )
+    } else {
+      setRecentNotifications([])
+    }
+    setLoadingRecent(false)
+  }
+
+  useEffect(() => {
+    loadRecentNotifications()
+  }, [])
+
+  // 유저 검색
+  const searchUser = async () => {
+    if (!query.trim()) {
+      setSearchResults([])
+      return
+    }
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, nickname')
+      .ilike('nickname', `%${query.trim()}%`)
+      .limit(10)
+
+    if (data) setSearchResults(data)
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(searchUser, 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  // 알림 전송
+  const handleSendNotification = async () => {
+    if (!selectedUser || !message.trim()) {
+      toast.error('유저와 알림 내용을 입력해주세요.')
+      return
+    }
+
+    setSending(true)
+
+    const notificationMessage = title.trim()
+      ? `[${title.trim()}] ${message.trim()}`
+      : message.trim()
+
+    const { error } = await supabase.from('notifications').insert({
+      user_id: selectedUser.id,
+      type: 'admin',
+      message: notificationMessage,
+    })
+
+    if (error) {
+      toast.error('알림 전송에 실패했습니다.')
+      setSending(false)
+      return
+    }
+
+    toast.success(`${selectedUser.nickname}님에게 알림을 보냈습니다.`)
+    setSelectedUser(null)
+    setTitle('')
+    setMessage('')
+    setQuery('')
+    setSearchResults([])
+    loadRecentNotifications()
+    setSending(false)
+  }
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* 알림 보내기 폼 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell className="w-5 h-5 text-blue-600" />
+          <h3 className="font-bold text-gray-900">알림 보내기</h3>
+        </div>
+
+        {/* 유저 검색 */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-600 mb-1">받는 사람</label>
+          {selectedUser ? (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <span className="text-sm font-medium text-blue-700">{selectedUser.nickname}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedUser(null)
+                  setQuery('')
+                }}
+                className="text-blue-500 hover:text-blue-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="닉네임 검색..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {/* 검색 결과 드롭다운 */}
+              {searchResults.length > 0 && (
+                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {searchResults.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedUser(user)
+                        setSearchResults([])
+                        setQuery('')
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <Users className="w-4 h-4 text-gray-400" />
+                      {user.nickname}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 제목 입력 */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-600 mb-1">제목 (선택)</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="알림 제목 (선택사항)"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* 내용 입력 */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-600 mb-1">내용</label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="알림 내용을 입력하세요..."
+            rows={4}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          />
+        </div>
+
+        {/* 전송 버튼 */}
+        <button
+          type="button"
+          onClick={handleSendNotification}
+          disabled={sending || !selectedUser || !message.trim()}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {sending ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              전송 중...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              알림 보내기
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* 최근 보낸 알림 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <h3 className="font-bold text-gray-900 mb-3">최근 보낸 알림</h3>
+        {loadingRecent ? (
+          <div className="text-center py-6 text-sm text-gray-400">불러오는 중...</div>
+        ) : recentNotifications.length === 0 ? (
+          <div className="text-center py-6 text-sm text-gray-400">보낸 알림이 없습니다.</div>
+        ) : (
+          <div className="space-y-2">
+            {recentNotifications.map((noti) => (
+              <div key={noti.id} className="border border-gray-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-blue-600">{noti.user_nickname}</span>
+                  <span className="text-[10px] text-gray-400">
+                    {new Date(noti.created_at).toLocaleString('ko-KR', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 line-clamp-2">{noti.message}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main ──
 
-type TabKey = 'stats' | 'reports' | 'hidden' | 'reporters' | 'events' | 'winners' | 'feedback' | 'ban'
+type TabKey = 'stats' | 'reports' | 'hidden' | 'reporters' | 'events' | 'winners' | 'feedback' | 'ban' | 'notify'
 
 const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
   { key: 'stats', label: '통계', superOnly: true },
@@ -2315,6 +2568,7 @@ const ALL_TABS: { key: TabKey; label: string; superOnly: boolean }[] = [
   { key: 'winners', label: '우승자 관리', superOnly: true },
   { key: 'feedback', label: '건의 관리', superOnly: true },
   { key: 'ban', label: '유저 제재', superOnly: true },
+  { key: 'notify', label: '알림 보내기', superOnly: true },
 ]
 
 export default function AdminPage() {
@@ -2389,6 +2643,7 @@ export default function AdminPage() {
         {activeTab === 'winners' && isSuperAdmin && <WinnersTab />}
         {activeTab === 'feedback' && isSuperAdmin && <FeedbackTab onUnreadCount={setUnreadFeedback} />}
         {activeTab === 'ban' && isSuperAdmin && <BanTab />}
+        {activeTab === 'notify' && isSuperAdmin && <NotifyTab />}
       </div>
     </div>
   )
