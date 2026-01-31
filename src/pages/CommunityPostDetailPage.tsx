@@ -31,28 +31,7 @@ import {
   Calendar,
   Aperture,
   Loader2,
-  Square,
-  CheckSquare,
 } from 'lucide-react'
-
-/* ── 이미지 최적화 URL ─────────────────────────────── */
-
-/**
- * Supabase Storage 이미지 URL에 리사이즈 파라미터 추가
- * - 글 상세: 1200px
- * - 전체화면: 원본 (파라미터 없음)
- */
-function getOptimizedImageUrl(url: string, width: number, quality: number = 85): string {
-  if (!url) return url
-  if (!url.includes('/storage/v1/object/public/')) return url
-
-  const transformedUrl = url.replace(
-    '/storage/v1/object/public/',
-    '/storage/v1/render/image/public/'
-  )
-  const separator = transformedUrl.includes('?') ? '&' : '?'
-  return `${transformedUrl}${separator}width=${width}&quality=${quality}&resize=contain`
-}
 
 /* ── 타입 ─────────────────────────────────────────── */
 
@@ -110,13 +89,11 @@ function normalizeExifData(
 
 function PhotoViewer({
   photos,
-  originalPhotos,
   startIndex,
   onClose,
   exifDataList,
 }: {
   photos: string[]
-  originalPhotos: string[]
   startIndex: number
   onClose: () => void
   exifDataList?: (ExifData | null)[] | null
@@ -124,12 +101,6 @@ function PhotoViewer({
   const [index, setIndex] = useState(startIndex)
   const [showExif, setShowExif] = useState(false)
   const [loadingImages, setLoadingImages] = useState<Set<number>>(new Set([startIndex]))
-
-  // 원본 화질 체크박스 상태 (localStorage 설정을 기본값으로)
-  const [useOriginal, setUseOriginal] = useState(() => {
-    const saved = localStorage.getItem('imageQuality')
-    return saved === 'original'
-  })
 
   // 현재 사진의 EXIF 데이터
   const currentExif = exifDataList?.[index] ?? null
@@ -148,13 +119,10 @@ function PhotoViewer({
   const lastPositionRef = useRef({ x: 0, y: 0 })
   const swipeStartXRef = useRef(0)
 
-  // 현재 표시할 이미지 URL (원본 또는 최적화)
-  const displayPhotos = useOriginal ? originalPhotos : photos
-
   const hasPrev = index > 0
-  const hasNext = index < displayPhotos.length - 1
+  const hasNext = index < photos.length - 1
   const prev = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index - 1)); setIndex((i) => Math.max(0, i - 1)) }
-  const next = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index + 1)); setIndex((i) => Math.min(displayPhotos.length - 1, i + 1)) }
+  const next = () => { resetZoom(); setLoadingImages((s) => new Set(s).add(index + 1)); setIndex((i) => Math.min(photos.length - 1, i + 1)) }
 
   const handleImageLoad = (idx: number) => {
     setLoadingImages((s) => { const n = new Set(s); n.delete(idx); return n })
@@ -202,7 +170,7 @@ function PhotoViewer({
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose, displayPhotos.length, showExif, scale])
+  }, [onClose, photos.length, showExif, scale])
 
   // 두 손가락 사이 거리 계산
   const getDistance = (touches: React.TouchList) => {
@@ -310,10 +278,10 @@ function PhotoViewer({
 
         {/* 중앙: 페이지 표시 */}
         <span className="text-white text-sm font-medium">
-          {index + 1} / {displayPhotos.length}
+          {index + 1} / {photos.length}
         </span>
 
-        {/* 오른쪽: EXIF + 원본 체크박스 */}
+        {/* 오른쪽: EXIF 버튼 */}
         <div className="flex items-center gap-2">
           {hasExifData(currentExif) && (
             <button
@@ -326,14 +294,6 @@ function PhotoViewer({
               <Info className="w-5 h-5" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setUseOriginal(!useOriginal)}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 text-white text-xs hover:bg-white/30 transition-colors"
-          >
-            {useOriginal ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-            <span>원본</span>
-          </button>
         </div>
       </div>
       <div
@@ -351,7 +311,7 @@ function PhotoViewer({
           </div>
         )}
         <img
-          src={displayPhotos[index]}
+          src={photos[index]}
           alt={`사진 ${index + 1}`}
           className={`max-w-full max-h-full object-contain select-none ${loadingImages.has(index) ? 'opacity-0' : 'opacity-100'}`}
           style={{
@@ -441,7 +401,7 @@ function PhotoViewer({
         )}
       </div>
       <div className="flex justify-center gap-1.5 pb-6">
-        {displayPhotos.map((_, i) => (
+        {photos.map((_, i) => (
           <span
             key={i}
             className={`w-1.5 h-1.5 rounded-full ${i === index ? 'bg-white' : 'bg-white/40'}`}
@@ -798,8 +758,6 @@ export default function CommunityPostDetailPage() {
   }
 
   const originalPhotos = post.image_urls ?? []
-  // 최적화된 사진 (1200px, 85% 품질)
-  const optimizedPhotos = originalPhotos.map((url) => getOptimizedImageUrl(url, 1200, 85))
 
   // YouTube URL 추출
   const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/g
@@ -1148,8 +1106,7 @@ export default function CommunityPostDetailPage() {
       {/* Photo viewer overlay */}
       {viewerIndex !== null && originalPhotos.length > 0 && (
         <PhotoViewer
-          photos={optimizedPhotos}
-          originalPhotos={originalPhotos}
+          photos={originalPhotos}
           startIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
           exifDataList={normalizeExifData(post?.exif_data, originalPhotos.length)}

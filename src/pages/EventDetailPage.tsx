@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trophy, Crown, Gift, ThumbsUp, X, Check, Flag, MoreVertical, ChevronLeft, ChevronRight, Square, CheckSquare } from 'lucide-react'
+import { ArrowLeft, Trophy, Crown, Gift, ThumbsUp, X, Check, Flag, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -86,12 +86,6 @@ function PhotoViewer({
   onClose: () => void
 }) {
   const [index, setIndex] = useState(startIndex)
-
-  // 원본 화질 체크박스 상태 (localStorage 설정을 기본값으로)
-  const [useOriginal, setUseOriginal] = useState(() => {
-    const saved = localStorage.getItem('imageQuality')
-    return saved === 'original'
-  })
 
   // 줌 상태
   const [scale, setScale] = useState(1)
@@ -239,16 +233,7 @@ function PhotoViewer({
         <span className="text-white text-sm font-medium">
           {index + 1} / {photos.length}
         </span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setUseOriginal(!useOriginal)}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 text-white text-xs hover:bg-white/30 transition-colors"
-          >
-            {useOriginal ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-            <span>원본</span>
-          </button>
-        </div>
+        <div className="w-10" />
       </div>
 
       <div
