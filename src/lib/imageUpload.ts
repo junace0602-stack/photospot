@@ -16,6 +16,10 @@ const ALLOWED_EXTENSIONS = new Set([
 const THUMBNAIL_SIZE = 400
 const THUMBNAIL_QUALITY = 0.82
 
+// 원본 이미지 WebP 변환 설정
+const ORIGINAL_MAX_DIM = 4000  // 장변 최대 4000px
+const ORIGINAL_QUALITY = 0.95 // WebP 품질 95%
+
 // HEIC MIME 타입 명시적 추가 (iOS에서 원본 HEIC 파일 받기 위해)
 const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif,.webp'
 export { IMAGE_ACCEPT }
@@ -135,8 +139,7 @@ export async function uploadImage(file: File): Promise<string> {
 
 /**
  * 이미지 + 썸네일(400x400)을 함께 업로드
- * - 원본: 변환 없이 그대로 업로드 (JPEG/PNG/WebP 원본 유지)
- * - HEIC만 JPEG로 변환 (브라우저 호환성)
+ * - 원본: WebP 품질 95%로 변환, 장변 4000px 초과 시 리사이즈
  * - 썸네일: 400x400px 중앙 크롭, WebP 82% 품질
  */
 export async function uploadImageWithThumbnail(file: File): Promise<UploadResult> {
@@ -162,23 +165,26 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
     )
   }
 
-  // 3. 원본 처리: HEIC만 JPEG로 변환, 나머지는 그대로
-  let originalBlob: Blob = file
-  let originalExt = getExtension(file.name) || 'jpg'
-  let originalContentType = file.type || 'image/jpeg'
+  // 3. 원본 처리: 모든 이미지를 WebP로 변환 (장변 4000px 제한, 품질 95%)
+  let sourceBlob: Blob = file
 
+  // HEIC는 먼저 JPEG로 변환 (Canvas에서 직접 읽을 수 없음)
   if (isHeic(file)) {
-    console.log('[imageUpload] Converting HEIC to JPEG...')
-    originalBlob = await convertHeic(file)
-    originalExt = 'jpg'
-    originalContentType = 'image/jpeg'
+    console.log('[imageUpload] Converting HEIC to JPEG first...')
+    sourceBlob = await convertHeic(file)
     console.log('[imageUpload] After HEIC conversion:', {
-      size: `${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`,
+      size: `${(sourceBlob.size / 1024 / 1024).toFixed(2)} MB`,
     })
   }
 
+  // 모든 이미지를 WebP로 변환 (장변 4000px 초과 시 리사이즈)
+  console.log('[imageUpload] Converting to WebP...')
+  const originalBlob = await toWebP(sourceBlob, ORIGINAL_MAX_DIM, ORIGINAL_QUALITY, false)
+  const originalExt = 'webp'
+  const originalContentType = 'image/webp'
+
   // 디버그: 업로드할 원본 크기
-  console.log('[imageUpload] Uploading original:', {
+  console.log('[imageUpload] After WebP conversion:', {
     size: `${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`,
     ext: originalExt,
     contentType: originalContentType,
