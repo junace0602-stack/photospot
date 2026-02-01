@@ -50,6 +50,28 @@ function isHeic(file: File): boolean {
   )
 }
 
+function isWebP(file: File): boolean {
+  const ext = getExtension(file.name)
+  return file.type === 'image/webp' || ext === 'webp'
+}
+
+/** 이미지의 실제 해상도를 가져옴 */
+function getImageDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve({ width: img.width, height: img.height })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('이미지 크기 확인 실패'))
+    }
+    img.src = url
+  })
+}
+
 /** HEIC/HEIF → JPEG Blob 변환 (고품질) */
 async function convertHeic(file: File): Promise<Blob> {
   const heic2any = (await import('heic2any')).default
@@ -165,26 +187,53 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
     )
   }
 
-  // 3. 원본 처리: 모든 이미지를 WebP로 변환 (장변 4000px 제한, 품질 95%)
-  let sourceBlob: Blob = file
+  // 3. 원본 처리
+  let originalBlob: Blob
+  let originalExt: string
+  let originalContentType: string
 
-  // HEIC는 먼저 JPEG로 변환 (Canvas에서 직접 읽을 수 없음)
-  if (isHeic(file)) {
-    console.log('[imageUpload] Converting HEIC to JPEG first...')
-    sourceBlob = await convertHeic(file)
-    console.log('[imageUpload] After HEIC conversion:', {
-      size: `${(sourceBlob.size / 1024 / 1024).toFixed(2)} MB`,
+  if (isWebP(file)) {
+    // 이미 WebP인 경우: 장변 4000px 초과할 때만 리사이즈
+    const dims = await getImageDimensions(file)
+    const maxDim = Math.max(dims.width, dims.height)
+    console.log('[imageUpload] WebP file detected:', {
+      width: dims.width,
+      height: dims.height,
+      maxDim,
     })
+
+    if (maxDim > ORIGINAL_MAX_DIM) {
+      // 리사이즈 필요
+      console.log('[imageUpload] WebP exceeds 4000px, resizing...')
+      originalBlob = await toWebP(file, ORIGINAL_MAX_DIM, ORIGINAL_QUALITY, false)
+    } else {
+      // 그대로 사용 (재압축 안 함)
+      console.log('[imageUpload] WebP within limit, keeping original')
+      originalBlob = file
+    }
+    originalExt = 'webp'
+    originalContentType = 'image/webp'
+  } else if (isHeic(file)) {
+    // HEIC: JPEG로 변환 후 WebP로 변환
+    console.log('[imageUpload] Converting HEIC to JPEG first...')
+    const jpegBlob = await convertHeic(file)
+    console.log('[imageUpload] After HEIC conversion:', {
+      size: `${(jpegBlob.size / 1024 / 1024).toFixed(2)} MB`,
+    })
+    console.log('[imageUpload] Converting to WebP...')
+    originalBlob = await toWebP(jpegBlob, ORIGINAL_MAX_DIM, ORIGINAL_QUALITY, false)
+    originalExt = 'webp'
+    originalContentType = 'image/webp'
+  } else {
+    // JPEG/PNG 등: WebP로 변환
+    console.log('[imageUpload] Converting to WebP...')
+    originalBlob = await toWebP(file, ORIGINAL_MAX_DIM, ORIGINAL_QUALITY, false)
+    originalExt = 'webp'
+    originalContentType = 'image/webp'
   }
 
-  // 모든 이미지를 WebP로 변환 (장변 4000px 초과 시 리사이즈)
-  console.log('[imageUpload] Converting to WebP...')
-  const originalBlob = await toWebP(sourceBlob, ORIGINAL_MAX_DIM, ORIGINAL_QUALITY, false)
-  const originalExt = 'webp'
-  const originalContentType = 'image/webp'
-
   // 디버그: 업로드할 원본 크기
-  console.log('[imageUpload] After WebP conversion:', {
+  console.log('[imageUpload] Final image:', {
     size: `${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`,
     ext: originalExt,
     contentType: originalContentType,
