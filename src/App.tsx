@@ -39,6 +39,7 @@ const UnregisteredSpotPage = lazy(() => import('./pages/UnregisteredSpotPage'))
 const InstallPage = lazy(() => import('./pages/InstallPage'))
 const RulesPage = lazy(() => import('./pages/RulesPage'))
 const UserPostsPage = lazy(() => import('./pages/UserPostsPage'))
+const GuidePage = lazy(() => import('./pages/GuidePage'))
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { loggedIn, profile, loading } = useAuth()
@@ -136,6 +137,7 @@ function AppLayout() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/install" element={<InstallPage />} />
             <Route path="/rules" element={<RulesPage />} />
+            <Route path="/guide" element={<GuidePage />} />
             <Route path="/users/:userId/posts" element={<UserPostsPage />} />
           </Routes>
         </Suspense>

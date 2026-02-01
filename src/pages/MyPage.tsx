@@ -19,6 +19,7 @@ import {
   Camera,
   Info,
   Eye,
+  BookOpen,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
@@ -654,6 +655,11 @@ function LoggedInView() {
           {/* 기타 섹션 */}
           <SectionHeader title="기타" />
           <div className="bg-white">
+            <MenuItem
+              icon={BookOpen}
+              label="이용 가이드"
+              onClick={() => navigate('/guide')}
+            />
             <MenuItem
               icon={MessageSquarePlus}
               label="건의하기"
