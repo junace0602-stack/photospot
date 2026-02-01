@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy, AlertTriangle, LocateFixed } from 'lucide-react'
+import { ArrowLeft, ImagePlus, X, ChevronDown, Loader2, Search, MapPin, Plus, Trophy, AlertTriangle, LocateFixed, BarChart3 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadImageWithThumbnail, IMAGE_ACCEPT } from '../lib/imageUpload'
 import { moderateText, checkDuplicatePost } from '../lib/moderation'
@@ -733,6 +733,15 @@ export default function CreatePostPage() {
   const [showCameraSuggestions, setShowCameraSuggestions] = useState(false)
   const [showLensSuggestions, setShowLensSuggestions] = useState(false)
 
+  // 투표 기능 (커뮤니티 글 전용)
+  const [showPoll, setShowPoll] = useState(false)
+  const [pollTitle, setPollTitle] = useState('')
+  const [pollOptions, setPollOptions] = useState<string[]>(['', ''])
+  const [pollAllowMultiple, setPollAllowMultiple] = useState(false)
+  const [pollHasEndTime, setPollHasEndTime] = useState(false)
+  const [pollEndDate, setPollEndDate] = useState('')
+  const [pollEndTime, setPollEndTime] = useState('')
+
   // 수정 모드 초기화
   useEffect(() => {
     if (!editPost) return
@@ -845,6 +854,42 @@ export default function CreatePostPage() {
     return next
   }
 
+  // 투표 옵션 관리
+  const addPollOption = () => {
+    if (pollOptions.length < 5) {
+      setPollOptions([...pollOptions, ''])
+    }
+  }
+  const removePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions(pollOptions.filter((_, i) => i !== index))
+    }
+  }
+  const updatePollOption = (index: number, value: string) => {
+    const updated = [...pollOptions]
+    updated[index] = value
+    setPollOptions(updated)
+  }
+  const togglePoll = () => {
+    if (showPoll) {
+      // 투표 제거 시 초기화
+      setShowPoll(false)
+      setPollTitle('')
+      setPollOptions(['', ''])
+      setPollAllowMultiple(false)
+      setPollHasEndTime(false)
+      setPollEndDate('')
+      setPollEndTime('')
+    } else {
+      setShowPoll(true)
+    }
+  }
+  // 투표 유효성 검사
+  const isPollValid = !showPoll || (
+    pollTitle.trim() &&
+    pollOptions.filter(o => o.trim()).length >= 2
+  )
+
   const hasPhotos = blocks.some((b) => b.type === 'photo')
   const isUploading = uploadingIds.size > 0
   const hasTitle = title.trim().length > 0
@@ -854,7 +899,7 @@ export default function CreatePostPage() {
 
   const canSubmit = isSpot
     ? !!spotId && hasTitle && !isUploading && !submitting
-    : hasTitle && !isUploading && !submitting
+    : hasTitle && !isUploading && !submitting && isPollValid
 
   const handleAddPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -1114,11 +1159,52 @@ export default function CreatePostPage() {
           if (lensModel.trim()) row.lens_model = lensModel.trim()
         }
 
-        const { error } = await supabase.from('community_posts').insert(row)
+        const { data: insertedPost, error } = await supabase
+          .from('community_posts')
+          .insert(row)
+          .select('id')
+          .single()
 
-        if (error) {
-          toast.error('글 저장에 실패했습니다: ' + error.message)
+        if (error || !insertedPost) {
+          toast.error('글 저장에 실패했습니다: ' + (error?.message ?? '알 수 없는 오류'))
           return
+        }
+
+        // 투표 생성
+        if (showPoll && pollTitle.trim()) {
+          const validOptions = pollOptions.filter(o => o.trim())
+          if (validOptions.length >= 2) {
+            // 종료 시간 계산
+            let endsAt: string | null = null
+            if (pollHasEndTime && pollEndDate) {
+              const endDateTime = pollEndTime
+                ? `${pollEndDate}T${pollEndTime}:00`
+                : `${pollEndDate}T23:59:59`
+              endsAt = new Date(endDateTime).toISOString()
+            }
+
+            // 투표 생성
+            const { data: pollData, error: pollError } = await supabase
+              .from('polls')
+              .insert({
+                post_id: insertedPost.id,
+                title: pollTitle.trim(),
+                allow_multiple: pollAllowMultiple,
+                ends_at: endsAt,
+              })
+              .select('id')
+              .single()
+
+            if (!pollError && pollData) {
+              // 투표 선택지 생성
+              const optionRows = validOptions.map((text, idx) => ({
+                poll_id: pollData.id,
+                text: text.trim(),
+                position: idx,
+              }))
+              await supabase.from('poll_options').insert(optionRows)
+            }
+          }
         }
 
         // 챌린지 참여 시 entries_count 증가
@@ -1534,6 +1620,134 @@ export default function CreatePostPage() {
               />
             </div>
           )}
+
+          {/* 투표 폼 (커뮤니티 글 전용) */}
+          {!isSpot && showPoll && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-gray-800">투표</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={togglePoll}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* 투표 제목 */}
+              <input
+                type="text"
+                value={pollTitle}
+                onChange={(e) => setPollTitle(e.target.value)}
+                placeholder="투표 제목을 입력하세요"
+                maxLength={100}
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-500 mb-3"
+              />
+
+              {/* 선택지 */}
+              <div className="space-y-2 mb-3">
+                {pollOptions.map((option, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={option}
+                      onChange={(e) => updatePollOption(idx, e.target.value)}
+                      placeholder={`선택지 ${idx + 1}`}
+                      maxLength={50}
+                      className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-500"
+                    />
+                    {pollOptions.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => removePollOption(idx)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* 선택지 추가 버튼 */}
+              {pollOptions.length < 5 && (
+                <button
+                  type="button"
+                  onClick={addPollOption}
+                  className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 mb-4"
+                >
+                  <Plus className="w-4 h-4" />
+                  선택지 추가
+                </button>
+              )}
+
+              {/* 옵션 토글 */}
+              <div className="space-y-3 pt-3 border-t border-gray-200">
+                {/* 복수선택 허용 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">복수선택 허용</span>
+                  <button
+                    type="button"
+                    onClick={() => setPollAllowMultiple(!pollAllowMultiple)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      pollAllowMultiple ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        pollAllowMultiple ? 'translate-x-[22px]' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* 종료 시간 설정 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">종료 시간 설정</span>
+                  <button
+                    type="button"
+                    onClick={() => setPollHasEndTime(!pollHasEndTime)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      pollHasEndTime ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        pollHasEndTime ? 'translate-x-[22px]' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* 종료 날짜/시간 선택 */}
+                {pollHasEndTime && (
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={pollEndDate}
+                      onChange={(e) => setPollEndDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-500"
+                    />
+                    <input
+                      type="time"
+                      value={pollEndTime}
+                      onChange={(e) => setPollEndTime(e.target.value)}
+                      className="w-28 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-500"
+                    />
+                  </div>
+                )}
+
+                {!pollHasEndTime && (
+                  <p className="text-xs text-gray-400">종료 시간을 설정하지 않으면 무기한 투표입니다.</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Meta section (출사지 전용) */}
@@ -1718,8 +1932,20 @@ export default function CreatePostPage() {
           className="flex items-center gap-1.5 text-sm text-gray-600"
         >
           <ImagePlus className="w-5 h-5" />
-          사진 추가
+          사진
         </button>
+        {!isSpot && (
+          <button
+            type="button"
+            onClick={togglePoll}
+            className={`ml-3 flex items-center gap-1.5 text-sm ${
+              showPoll ? 'text-blue-600' : 'text-gray-600'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            투표
+          </button>
+        )}
         <label className="ml-4 flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
           <input
             type="checkbox"

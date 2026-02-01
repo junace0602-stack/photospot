@@ -66,6 +66,29 @@ interface CommunityComment {
   created_at: string
 }
 
+interface Poll {
+  id: string
+  post_id: string
+  title: string
+  allow_multiple: boolean
+  ends_at: string | null
+  created_at: string
+}
+
+interface PollOption {
+  id: string
+  poll_id: string
+  text: string
+  position: number
+}
+
+interface PollVote {
+  id: string
+  poll_id: string
+  option_id: string
+  user_id: string
+}
+
 /* ── 포토 뷰어 ───────────────────────────────────── */
 
 // exif_data 정규화: 다양한 형식 처리 (배열 또는 단일 객체)
@@ -448,6 +471,13 @@ export default function CommunityPostDetailPage() {
   const [scrapped, setScrapped] = useState(false)
   const [scrapLoading, setScrapLoading] = useState(false)
 
+  // 투표 상태
+  const [poll, setPoll] = useState<Poll | null>(null)
+  const [pollOptions, setPollOptions] = useState<PollOption[]>([])
+  const [pollVotes, setPollVotes] = useState<PollVote[]>([])
+  const [myVotes, setMyVotes] = useState<Set<string>>(new Set()) // 내가 투표한 option_id들
+  const [votingOptionId, setVotingOptionId] = useState<string | null>(null)
+
   useEffect(() => {
     if (!postId) return
 
@@ -471,7 +501,32 @@ export default function CommunityPostDetailPage() {
       setComments((commentsRes.data ?? []) as CommunityComment[])
       setLikeCount(likesCountRes.count ?? 0)
 
-      // 로그인한 경우 좋아요/스크랩 여부 확인
+      // 투표 데이터 로드
+      const { data: pollData } = await supabase
+        .from('polls')
+        .select('*')
+        .eq('post_id', postId)
+        .maybeSingle()
+
+      if (pollData) {
+        setPoll(pollData as Poll)
+        // 선택지와 투표 현황 로드
+        const [optionsRes, votesRes] = await Promise.all([
+          supabase
+            .from('poll_options')
+            .select('*')
+            .eq('poll_id', pollData.id)
+            .order('position', { ascending: true }),
+          supabase
+            .from('poll_votes')
+            .select('*')
+            .eq('poll_id', pollData.id),
+        ])
+        setPollOptions((optionsRes.data ?? []) as PollOption[])
+        setPollVotes((votesRes.data ?? []) as PollVote[])
+      }
+
+      // 로그인한 경우 좋아요/스크랩/투표 여부 확인
       if (user) {
         const [myLikeRes, myScrapRes] = await Promise.all([
           supabase
@@ -489,6 +544,18 @@ export default function CommunityPostDetailPage() {
         ])
         setLiked(!!myLikeRes.data)
         setScrapped(!!myScrapRes.data)
+
+        // 내 투표 확인
+        if (pollData) {
+          const { data: myVotesData } = await supabase
+            .from('poll_votes')
+            .select('option_id')
+            .eq('poll_id', pollData.id)
+            .eq('user_id', user.id)
+          if (myVotesData) {
+            setMyVotes(new Set(myVotesData.map(v => v.option_id)))
+          }
+        }
       }
 
       setLoading(false)
@@ -593,6 +660,87 @@ export default function CommunityPostDetailPage() {
 
     setScrapLoading(false)
   }, [scrapped, scrapLoading, loggedIn, postId, user])
+
+  // 투표 관련 계산
+  const isPollEnded = poll?.ends_at ? new Date(poll.ends_at) < new Date() : false
+  const hasVoted = myVotes.size > 0
+
+  // 남은 시간 계산
+  const getPollTimeLeft = useCallback(() => {
+    if (!poll?.ends_at) return null
+    const now = new Date()
+    const end = new Date(poll.ends_at)
+    const diff = end.getTime() - now.getTime()
+    if (diff <= 0) return '투표 종료됨'
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (days > 0) return `${days}일 ${hours}시간 남음`
+    if (hours > 0) return `${hours}시간 ${minutes}분 남음`
+    return `${minutes}분 남음`
+  }, [poll?.ends_at])
+
+  // 투표/취소
+  const handleVote = useCallback(async (optionId: string) => {
+    if (!loggedIn || !user || !poll || isPollEnded || votingOptionId) return
+
+    const isVoted = myVotes.has(optionId)
+    setVotingOptionId(optionId)
+
+    try {
+      if (isVoted) {
+        // 투표 취소
+        await supabase
+          .from('poll_votes')
+          .delete()
+          .eq('poll_id', poll.id)
+          .eq('option_id', optionId)
+          .eq('user_id', user.id)
+
+        // 낙관적 UI 업데이트
+        setMyVotes(prev => {
+          const next = new Set(prev)
+          next.delete(optionId)
+          return next
+        })
+        setPollVotes(prev => prev.filter(v => !(v.option_id === optionId && v.user_id === user.id)))
+      } else {
+        // 단일 선택인 경우 기존 투표 삭제
+        if (!poll.allow_multiple && myVotes.size > 0) {
+          await supabase
+            .from('poll_votes')
+            .delete()
+            .eq('poll_id', poll.id)
+            .eq('user_id', user.id)
+
+          setMyVotes(new Set())
+          setPollVotes(prev => prev.filter(v => v.user_id !== user.id))
+        }
+
+        // 새 투표
+        const { data } = await supabase
+          .from('poll_votes')
+          .insert({
+            poll_id: poll.id,
+            option_id: optionId,
+            user_id: user.id,
+          })
+          .select()
+          .single()
+
+        if (data) {
+          setMyVotes(prev => new Set([...prev, optionId]))
+          setPollVotes(prev => [...prev, data as PollVote])
+        }
+      }
+    } catch {
+      toast.error('투표 중 오류가 발생했습니다.')
+    } finally {
+      setVotingOptionId(null)
+    }
+  }, [loggedIn, user, poll, isPollEnded, votingOptionId, myVotes])
 
   // 신고 모달 열기 (정지 체크)
   const handleOpenReport = useCallback(async () => {
@@ -893,6 +1041,107 @@ export default function CommunityPostDetailPage() {
                 <img src={url} alt={`사진 ${i + 1}`} className="w-full rounded-lg" />
               </button>
             ))}
+
+            {/* 투표 */}
+            {poll && pollOptions.length > 0 && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <h4 className="text-sm font-bold text-gray-900 mb-3">{poll.title}</h4>
+
+                {/* 선택지 */}
+                <div className="space-y-2">
+                  {pollOptions.map((option) => {
+                    const voteCount = pollVotes.filter(v => v.option_id === option.id).length
+                    const totalVotes = new Set(pollVotes.map(v => v.user_id)).size
+                    const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0
+                    const isMyVote = myVotes.has(option.id)
+                    const showResults = hasVoted || isPollEnded
+                    const isVoting = votingOptionId === option.id
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => handleVote(option.id)}
+                        disabled={!loggedIn || isPollEnded || isVoting}
+                        className={`relative w-full text-left rounded-lg overflow-hidden transition-all ${
+                          isPollEnded
+                            ? 'cursor-default'
+                            : isMyVote
+                            ? 'ring-2 ring-blue-500'
+                            : 'hover:ring-2 hover:ring-blue-200'
+                        } ${!loggedIn && !isPollEnded ? 'opacity-60' : ''}`}
+                      >
+                        {/* 결과 바 (투표 후 또는 종료 시) */}
+                        {showResults && (
+                          <div
+                            className={`absolute inset-0 ${isMyVote ? 'bg-blue-100' : 'bg-gray-200'}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        )}
+
+                        <div className={`relative flex items-center justify-between px-4 py-3 ${
+                          showResults ? '' : 'bg-white border border-gray-200'
+                        }`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isVoting ? (
+                              <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+                            ) : isMyVote ? (
+                              <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <div className={`w-4 h-4 rounded-full border-2 shrink-0 ${
+                                showResults ? 'border-gray-400' : 'border-gray-300'
+                              }`} />
+                            )}
+                            <span className={`text-sm truncate ${isMyVote ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                              {option.text}
+                            </span>
+                          </div>
+
+                          {showResults && (
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <span className={`text-sm font-medium ${isMyVote ? 'text-blue-600' : 'text-gray-500'}`}>
+                                {percentage}%
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                ({voteCount}명)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* 투표 정보 */}
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200">
+                  <div className="text-xs text-gray-500">
+                    {new Set(pollVotes.map(v => v.user_id)).size}명 참여
+                    {poll.allow_multiple && ' · 복수선택'}
+                  </div>
+                  {poll.ends_at && (
+                    <div className={`text-xs font-medium ${isPollEnded ? 'text-red-500' : 'text-blue-600'}`}>
+                      {getPollTimeLeft()}
+                    </div>
+                  )}
+                  {!poll.ends_at && (
+                    <div className="text-xs text-gray-400">무기한</div>
+                  )}
+                </div>
+
+                {!loggedIn && !isPollEnded && (
+                  <p className="text-xs text-gray-400 mt-2">로그인 후 투표할 수 있습니다.</p>
+                )}
+
+                {hasVoted && !isPollEnded && (
+                  <p className="text-xs text-gray-400 mt-2">투표한 항목을 다시 클릭하면 취소됩니다.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Like & Scrap & Report */}
