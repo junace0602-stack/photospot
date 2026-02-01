@@ -55,14 +55,15 @@ function isWebP(file: File): boolean {
   return file.type === 'image/webp' || ext === 'webp'
 }
 
-/** 이미지의 실제 해상도를 가져옴 */
+/** 이미지의 실제 해상도를 가져옴 (naturalWidth/Height 사용) */
 function getImageDimensions(blob: Blob): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob)
     const img = new Image()
     img.onload = () => {
       URL.revokeObjectURL(url)
-      resolve({ width: img.width, height: img.height })
+      // naturalWidth/Height는 이미지의 실제 픽셀 크기
+      resolve({ width: img.naturalWidth, height: img.naturalHeight })
     }
     img.onerror = () => {
       URL.revokeObjectURL(url)
@@ -74,19 +75,26 @@ function getImageDimensions(blob: Blob): Promise<{ width: number; height: number
 
 /** HEIC/HEIF → JPEG Blob 변환 (고품질) */
 async function convertHeic(file: File): Promise<Blob> {
+  console.log('[convertHeic] Starting HEIC conversion:', {
+    inputSize: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+  })
   const heic2any = (await import('heic2any')).default
   const result = await heic2any({
     blob: file,
     toType: 'image/jpeg',
     quality: 0.98, // 최대한 무손실에 가깝게
   })
-  return Array.isArray(result) ? result[0] : result
+  const blob = Array.isArray(result) ? result[0] : result
+  console.log('[convertHeic] HEIC conversion complete:', {
+    outputSize: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
+  })
+  return blob
 }
 
 /**
- * Canvas를 이용해 이미지를 WebP로 변환 (썸네일 생성용)
- * - maxDim: 최대 크기
- * - quality: WebP 품질
+ * Canvas를 이용해 이미지를 WebP로 변환
+ * - maxDim: 최대 크기 (0이면 리사이즈 안 함)
+ * - quality: WebP 품질 (0.0 ~ 1.0)
  * - crop: true면 중앙 크롭하여 정사각형으로 만듦
  */
 function toWebP(
@@ -96,33 +104,52 @@ function toWebP(
   crop: boolean = false,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    console.log('[toWebP] Starting conversion:', {
+      inputSize: `${(source.size / 1024 / 1024).toFixed(2)} MB`,
+      maxDim,
+      quality,
+      crop,
+    })
+
     const url = URL.createObjectURL(source)
     const img = new Image()
     img.onload = () => {
       URL.revokeObjectURL(url)
 
-      let sx = 0, sy = 0, sw = img.width, sh = img.height
+      console.log('[toWebP] Image loaded:', {
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        width: img.width,
+        height: img.height,
+      })
+
+      let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight
       let width: number, height: number
 
       if (crop) {
         // 중앙 크롭 (정사각형)
-        const side = Math.min(img.width, img.height)
-        sx = Math.round((img.width - side) / 2)
-        sy = Math.round((img.height - side) / 2)
+        const side = Math.min(img.naturalWidth, img.naturalHeight)
+        sx = Math.round((img.naturalWidth - side) / 2)
+        sy = Math.round((img.naturalHeight - side) / 2)
         sw = side
         sh = side
         width = maxDim
         height = maxDim
-      } else if (maxDim > 0 && (img.width > maxDim || img.height > maxDim)) {
+      } else if (maxDim > 0 && (img.naturalWidth > maxDim || img.naturalHeight > maxDim)) {
         // 리사이즈 필요 시에만 리사이즈
-        const ratio = Math.min(maxDim / img.width, maxDim / img.height)
-        width = Math.round(img.width * ratio)
-        height = Math.round(img.height * ratio)
+        const ratio = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight)
+        width = Math.round(img.naturalWidth * ratio)
+        height = Math.round(img.naturalHeight * ratio)
       } else {
         // 원본 해상도 유지
-        width = img.width
-        height = img.height
+        width = img.naturalWidth
+        height = img.naturalHeight
       }
+
+      console.log('[toWebP] Canvas setup:', {
+        sourceRect: { sx, sy, sw, sh },
+        canvasSize: { width, height },
+      })
 
       const canvas = document.createElement('canvas')
       canvas.width = width
@@ -131,17 +158,33 @@ function toWebP(
       if (!ctx) return reject(new Error('Canvas not supported'))
 
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, width, height)
+
+      console.log('[toWebP] Calling toBlob with:', {
+        mimeType: 'image/webp',
+        quality,
+        qualityType: typeof quality,
+      })
+
       canvas.toBlob(
         (blob) => {
-          if (blob) resolve(blob)
-          else reject(new Error('WebP 변환 실패'))
+          if (blob) {
+            console.log('[toWebP] Conversion complete:', {
+              outputSize: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
+              outputBytes: blob.size,
+              compressionRatio: `${((1 - blob.size / source.size) * 100).toFixed(1)}%`,
+            })
+            resolve(blob)
+          } else {
+            reject(new Error('WebP 변환 실패'))
+          }
         },
         'image/webp',
         quality,
       )
     }
-    img.onerror = () => {
+    img.onerror = (e) => {
       URL.revokeObjectURL(url)
+      console.error('[toWebP] Image load error:', e)
       reject(new Error('이미지 로드 실패'))
     }
     img.src = url
@@ -187,20 +230,23 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
     )
   }
 
-  // 3. 원본 처리
+  // 3. 원본 파일 해상도 확인
+  const inputDims = await getImageDimensions(file)
+  console.log('[imageUpload] Input file dimensions:', {
+    width: inputDims.width,
+    height: inputDims.height,
+    megapixels: ((inputDims.width * inputDims.height) / 1000000).toFixed(1),
+  })
+
+  // 4. 원본 처리
   let originalBlob: Blob
   let originalExt: string
   let originalContentType: string
 
   if (isWebP(file)) {
     // 이미 WebP인 경우: 장변 4000px 초과할 때만 리사이즈
-    const dims = await getImageDimensions(file)
-    const maxDim = Math.max(dims.width, dims.height)
-    console.log('[imageUpload] WebP file detected:', {
-      width: dims.width,
-      height: dims.height,
-      maxDim,
-    })
+    const maxDim = Math.max(inputDims.width, inputDims.height)
+    console.log('[imageUpload] WebP file detected, maxDim:', maxDim)
 
     if (maxDim > ORIGINAL_MAX_DIM) {
       // 리사이즈 필요
@@ -232,17 +278,21 @@ export async function uploadImageWithThumbnail(file: File): Promise<UploadResult
     originalContentType = 'image/webp'
   }
 
-  // 디버그: 업로드할 원본 크기
+  // 디버그: 업로드할 원본 크기 및 해상도
+  const finalDims = await getImageDimensions(originalBlob)
   console.log('[imageUpload] Final image:', {
     size: `${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`,
+    width: finalDims.width,
+    height: finalDims.height,
     ext: originalExt,
     contentType: originalContentType,
+    compressionRatio: `${((1 - originalBlob.size / file.size) * 100).toFixed(1)}% reduced`,
   })
 
-  // 4. 썸네일 생성 (400x400 중앙 크롭, WebP)
+  // 5. 썸네일 생성 (400x400 중앙 크롭, WebP)
   const thumbBlob = await toWebP(originalBlob, THUMBNAIL_SIZE, THUMBNAIL_QUALITY, true)
 
-  // 5. 병렬 업로드 (원본 + 썸네일)
+  // 6. 병렬 업로드 (원본 + 썸네일)
   const uuid = crypto.randomUUID()
   const originalPath = `${uuid}.${originalExt}`
   const thumbPath = `thumb/${uuid}.webp`
